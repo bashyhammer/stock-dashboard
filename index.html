@@ -156,10 +156,10 @@
         </header>
 
         <div class="content-grid">
-            <!-- Left Column: Sunburst Chart -->
+            <!-- Left Column: Heatmap Sunburst Chart -->
             <div class="card">
                 <div class="card-header">
-                    <h2>Portfolio Allocation</h2>
+                    <h2>Portfolio Allocation Heatmap</h2>
                 </div>
                 <div id="sunburstChart"></div>
             </div>
@@ -220,6 +220,15 @@
             updateDashboardUI(filteredStocks);
         }
 
+        // Helper function: Convert percentage performance into Green / Red / Neutral hex color
+        function getPerformanceColor(pctChange) {
+            if (pctChange > 3) return "#00c853";       // Strong Green
+            if (pctChange > 0) return "#4caf50";       // Moderate Green
+            if (pctChange === 0) return "#78909c";     // Neutral Gray
+            if (pctChange > -3) return "#e57373";      // Moderate Red
+            return "#d32f2f";                          // Strong Red
+        }
+
         function updateDashboardUI(stocks) {
             const tickerContainer = document.getElementById("ticker-list");
 
@@ -229,34 +238,40 @@
                 return;
             }
 
-            // Calculate sector totals manually to pass valid values to Plotly
-            const sectorTotals = {};
+            // Calculate sector total prices & average percentage performance
+            const sectorData = {};
             stocks.forEach(stock => {
-                if (!sectorTotals[stock.sector]) {
-                    sectorTotals[stock.sector] = 0;
+                if (!sectorData[stock.sector]) {
+                    sectorData[stock.sector] = { totalPrice: 0, totalChange: 0, count: 0 };
                 }
-                sectorTotals[stock.sector] += stock.price;
+                sectorData[stock.sector].totalPrice += stock.price;
+                sectorData[stock.sector].totalChange += stock.change;
+                sectorData[stock.sector].count += 1;
             });
 
             const ids = [];
             const labels = [];
             const parents = [];
             const values = [];
+            const colors = [];
 
-            // Level 1: Sector Nodes (Inner Ring)
-            Object.keys(sectorTotals).forEach(sector => {
+            // Level 1: Sector Nodes (Inner Ring - Color coded by Sector Avg Performance)
+            Object.keys(sectorData).forEach(sector => {
+                const avgChange = sectorData[sector].totalChange / sectorData[sector].count;
                 ids.push(sector);
                 labels.push(sector);
                 parents.push("");
-                values.push(sectorTotals[sector]);
+                values.push(sectorData[sector].totalPrice);
+                colors.push(getPerformanceColor(avgChange));
             });
 
-            // Level 2: Stock Nodes (Outer Ring)
+            // Level 2: Stock Nodes (Outer Ring - Color coded by Ticker Performance)
             stocks.forEach(stock => {
                 ids.push(`${stock.sector}-${stock.symbol}`);
-                labels.push(stock.symbol);
+                labels.push(`${stock.symbol}<br>${stock.change >= 0 ? '+' : ''}${stock.change}%`);
                 parents.push(stock.sector);
                 values.push(stock.price);
+                colors.push(getPerformanceColor(stock.change));
             });
 
             const sunburstData = [{
@@ -267,8 +282,11 @@
                 values: values,
                 branchvalues: "total",
                 outsidetextfont: { size: 12, color: "#ffffff" },
-                leaf: { opacity: 0.8 },
-                marker: { line: { width: 2, color: "#0b0c10" } }
+                leaf: { opacity: 0.9 },
+                marker: { 
+                    colors: colors,
+                    line: { width: 2, color: "#0b0c10" } 
+                }
             }];
 
             const layout = {
