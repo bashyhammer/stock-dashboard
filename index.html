@@ -90,6 +90,25 @@
             background-color: #0b0c10;
             border-radius: 6px;
             border-left: 4px solid #45a29e;
+            transition: all 0.3s ease;
+        }
+
+        /* Glowing Gold Alert for $5–$10 target stocks */
+        .ticker-row.target-alert {
+            border-left: 4px solid #ffd700 !important;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
+            background-color: #161b22;
+        }
+
+        .badge {
+            background-color: #ffd700;
+            color: #0b0c10;
+            font-size: 0.65rem;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 8px;
+            display: inline-block;
         }
 
         .ticker-symbol {
@@ -166,7 +185,7 @@
             // 1. Prepare Plotly Sunburst Data
             const labels = ["Portfolio"];
             const parents = [""];
-            const values = [null]; // Setting root to null lets Plotly calculate the sum without math errors
+            const values = [null]; // Passing null lets Plotly sum values internally
 
             stocks.forEach(stock => {
                 labels.push(stock.symbol);
@@ -193,7 +212,7 @@
 
             Plotly.newPlot('sunburstChart', sunburstData, layout, { responsive: true, displayModeBar: false });
 
-            // 2. Render Ticker List Cards
+            // 2. Render Ticker List Cards with Alerts
             const tickerContainer = document.getElementById("ticker-list");
             if (tickerContainer) {
                 tickerContainer.innerHTML = stocks.map(stock => {
@@ -201,9 +220,16 @@
                     const changeColor = isPositive ? '#66fcf1' : '#ff4d4d';
                     const changeSign = isPositive ? '+' : '';
 
+                    // Check backend target_hit flag
+                    const alertClass = stock.target_hit ? 'target-alert' : '';
+                    const badgeHtml = stock.target_hit ? '<span class="badge">TARGET $5-$10</span>' : '';
+
                     return `
-                        <div class="ticker-row">
-                            <span class="ticker-symbol">${stock.symbol}</span>
+                        <div class="ticker-row ${alertClass}">
+                            <div>
+                                <span class="ticker-symbol">${stock.symbol}</span>
+                                ${badgeHtml}
+                            </div>
                             <span class="ticker-price" style="color: ${changeColor};">
                                 $${stock.price.toFixed(2)} (${changeSign}${stock.change}%)
                             </span>
@@ -213,10 +239,7 @@
             }
         }
 
-        // Fetch immediately on page load
         refreshDashboard();
-
-        // Refresh automatically every 30 seconds
         setInterval(refreshDashboard, 30000);
     </script>
 </body>
