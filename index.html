@@ -62,6 +62,30 @@
             height: 18px;
         }
 
+        /* Controls Toolbar in Ticker Card Header */
+        .card-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-export {
+            background-color: transparent;
+            border: 1px solid #00c853;
+            color: #00c853;
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        .btn-export:hover {
+            background-color: #00c853;
+            color: #0b0c10;
+        }
+
         /* Sync Controls & Countdown Ring */
         .sync-controls {
             display: flex;
@@ -236,10 +260,13 @@
             <div class="card">
                 <div class="card-header">
                     <h2>Watched Tickers</h2>
-                    <label class="toggle-label">
-                        <input type="checkbox" id="targetFilterToggle" onchange="handleFilterToggle()" style="cursor: pointer; accent-color: #ffd700;">
-                        Target ($5–$10) Only
-                    </label>
+                    <div class="card-header-actions">
+                        <button class="btn-export" onclick="exportToCSV()" title="Download current ticker list as CSV">📥 Export CSV</button>
+                        <label class="toggle-label">
+                            <input type="checkbox" id="targetFilterToggle" onchange="handleFilterToggle()" style="cursor: pointer; accent-color: #ffd700;">
+                            Target ($5–$10)
+                        </label>
+                    </div>
                 </div>
                 <div id="ticker-list" class="ticker-list">
                     <p style="text-align: center; color: #888;">Connecting to backend engine...</p>
@@ -280,6 +307,7 @@
         
         let rawStockData = [];
         let customSymbols = [];
+        let currentlyDisplayedStocks = [];
         
         const REFRESH_INTERVAL_SECONDS = 30;
         let countdown = REFRESH_INTERVAL_SECONDS;
@@ -319,14 +347,13 @@
         function startTimer() {
             if (timerInterval) clearInterval(timerInterval);
             
-            const totalDash = 88; // Circumference of radius 14 circle
+            const totalDash = 88;
             
             timerInterval = setInterval(() => {
                 if (isSyncPaused) return;
 
                 countdown--;
 
-                // Update UI circle and number
                 document.getElementById("timerText").innerText = countdown;
                 const offset = totalDash - (countdown / REFRESH_INTERVAL_SECONDS) * totalDash;
                 document.getElementById("timerProgress").style.strokeDashoffset = offset;
@@ -353,6 +380,40 @@
                 btn.classList.remove("paused");
                 progressCircle.style.stroke = "#66fcf1";
             }
+        }
+
+        function exportToCSV() {
+            if (!currentlyDisplayedStocks || currentlyDisplayedStocks.length === 0) {
+                alert("No stock data available to export.");
+                return;
+            }
+
+            const headers = ["Symbol", "Sector", "Price ($)", "Change (%)", "Target Hit ($5-$10)", "Volume", "Market Cap"];
+            
+            const csvRows = [
+                headers.join(","),
+                ...currentlyDisplayedStocks.map(s => [
+                    `"${s.symbol}"`,
+                    `"${s.sector}"`,
+                    s.price.toFixed(2),
+                    s.change.toFixed(2),
+                    s.target_hit ? "YES" : "NO",
+                    `"${s.volume}"`,
+                    `"${s.market_cap}"`
+                ].join(","))
+            ];
+
+            const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
+            const encodedUri = encodeURI(csvContent);
+            
+            const link = document.createElement("a");
+            const dateStr = new Date().toISOString().slice(0,10);
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `stock_snapshot_${dateStr}.csv`);
+            document.body.appendChild(link);
+            
+            link.click();
+            document.body.removeChild(link);
         }
 
         async function searchAndAddStock() {
@@ -405,11 +466,11 @@
         function applyFiltersAndRender() {
             const showTargetOnly = document.getElementById("targetFilterToggle").checked;
             
-            const filteredStocks = showTargetOnly 
+            currentlyDisplayedStocks = showTargetOnly 
                 ? rawStockData.filter(stock => stock.target_hit)
                 : rawStockData;
 
-            updateDashboardUI(filteredStocks);
+            updateDashboardUI(currentlyDisplayedStocks);
             updateKPIs(rawStockData);
         }
 
