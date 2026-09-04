@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Low-Cost Stock Dashboard</title>
 
-    <!-- Plotly.js Library -->
+    <!-- Include Plotly.js -->
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 
     <style>
@@ -51,7 +51,7 @@
 
         .content-grid {
             display: grid;
-            grid-template-columns: 1fr 300px;
+            grid-template-columns: 1fr 340px;
             gap: 20px;
         }
 
@@ -68,12 +68,28 @@
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
         }
 
-        .card h2 {
-            color: #66fcf1;
-            font-size: 1.2rem;
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 15px;
             border-bottom: 1px solid #45a29e;
             padding-bottom: 8px;
+        }
+
+        .card h2 {
+            color: #66fcf1;
+            font-size: 1.2rem;
+            margin: 0;
+        }
+
+        .toggle-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            color: #66fcf1;
+            cursor: pointer;
         }
 
         .ticker-list {
@@ -93,7 +109,6 @@
             transition: all 0.3s ease;
         }
 
-        /* Glowing Gold Alert for $5–$10 target stocks */
         .ticker-row.target-alert {
             border-left: 4px solid #ffd700 !important;
             box-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
@@ -107,7 +122,7 @@
             font-weight: bold;
             padding: 2px 6px;
             border-radius: 4px;
-            margin-left: 8px;
+            margin-left: 6px;
             display: inline-block;
         }
 
@@ -143,18 +158,24 @@
         <div class="content-grid">
             <!-- Left Column: Sunburst Chart -->
             <div class="card">
-                <h2>Portfolio Allocation</h2>
+                <div class="card-header">
+                    <h2>Portfolio Allocation</h2>
+                </div>
                 <div id="sunburstChart"></div>
             </div>
 
-            <!-- Right Column: Ticker List -->
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #45a29e; padding-bottom: 8px;">
-    <h2 style="border: none; margin: 0; padding: 0;">Watched Tickers</h2>
-    <label style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #66fcf1; cursor: pointer;">
-        <input type="checkbox" id="targetFilterToggle" onchange="handleFilterToggle()" style="cursor: pointer; accent-color: #ffd700;">
-        Target ($5–$10) Only
-    </label>
-</div>
+            <!-- Right Column: Ticker List Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Watched Tickers</h2>
+                    <label class="toggle-label">
+                        <input type="checkbox" id="targetFilterToggle" onchange="handleFilterToggle()" style="cursor: pointer; accent-color: #ffd700;">
+                        Target ($5–$10) Only
+                    </label>
+                </div>
+                <div id="ticker-list" class="ticker-list">
+                    <p style="text-align: center; color: #888;">Connecting to local engine...</p>
+                </div>
             </div>
         </div>
 
@@ -164,94 +185,92 @@
     </div>
 
     <script>
-    const API_URL = "http://127.0.0.1:8501/api/stocks";
-    let rawStockData = []; // Store full dataset locally
+        const API_URL = "http://127.0.0.1:8501/api/stocks";
+        let rawStockData = [];
 
-    async function refreshDashboard() {
-        try {
-            const response = await fetch(API_URL);
-            const result = await response.json();
-            
-            if (result.status === "success" && result.data) {
-                rawStockData = result.data; // Cache full stock data
-                applyFiltersAndRender();
-                document.getElementById("last-updated").innerText = `Status: Live | Last synced: ${new Date().toLocaleTimeString()}`;
-                document.getElementById("last-updated").style.color = "#45a29e";
+        async function refreshDashboard() {
+            try {
+                const response = await fetch(API_URL);
+                const result = await response.json();
+                
+                if (result.status === "success" && result.data) {
+                    rawStockData = result.data;
+                    applyFiltersAndRender();
+                    document.getElementById("last-updated").innerText = `Status: Live | Last synced: ${new Date().toLocaleTimeString()}`;
+                    document.getElementById("last-updated").style.color = "#45a29e";
+                }
+            } catch (error) {
+                console.error("Error connecting to FastAPI backend:", error);
+                document.getElementById("last-updated").innerText = "Status: Backend Disconnected (Ensure main.py is running on port 8501)";
+                document.getElementById("last-updated").style.color = "#ff4d4d";
             }
-        } catch (error) {
-            console.error("Error connecting to FastAPI backend:", error);
-            document.getElementById("last-updated").innerText = "Status: Backend Disconnected (Ensure main.py is running on port 8501)";
-            document.getElementById("last-updated").style.color = "#ff4d4d";
-        }
-    }
-
-    function handleFilterToggle() {
-        applyFiltersAndRender();
-    }
-
-    function applyFiltersAndRender() {
-        const showTargetOnly = document.getElementById("targetFilterToggle").checked;
-        
-        // Filter stocks based on toggle state
-        const filteredStocks = showTargetOnly 
-            ? rawStockData.filter(stock => stock.target_hit)
-            : rawStockData;
-
-        updateDashboardUI(filteredStocks);
-    }
-
-    function updateDashboardUI(stocks) {
-        // Handle empty filter state
-        const tickerContainer = document.getElementById("ticker-list");
-        if (stocks.length === 0) {
-            tickerContainer.innerHTML = '<p style="text-align: center; color: #888; padding: 20px;">No stocks currently in the $5–$10 target range.</p>';
-            Plotly.purge('sunburstChart');
-            return;
         }
 
-        // 1. Prepare Hierarchical Multi-Tier Sunburst Data
-        const labels = ["Portfolio"];
-        const parents = [""];
-        const values = [null]; 
+        function handleFilterToggle() {
+            applyFiltersAndRender();
+        }
 
-        // Extract unique sectors present in filtered data
-        const uniqueSectors = [...new Set(stocks.map(s => s.sector))];
-        
-        // Add Sector Nodes (Level 1)
-        uniqueSectors.forEach(sector => {
-            labels.push(sector);
-            parents.push("Portfolio");
-            values.push(null);
-        });
+        function applyFiltersAndRender() {
+            const showTargetOnly = document.getElementById("targetFilterToggle").checked;
+            
+            const filteredStocks = showTargetOnly 
+                ? rawStockData.filter(stock => stock.target_hit)
+                : rawStockData;
 
-        // Add Ticker Nodes (Level 2)
-        stocks.forEach(stock => {
-            labels.push(stock.symbol);
-            parents.push(stock.sector);
-            values.push(stock.price);
-        });
+            updateDashboardUI(filteredStocks);
+        }
 
-        const sunburstData = [{
-            type: "sunburst",
-            labels: labels,
-            parents: parents,
-            values: values,
-            outsidetextfont: { size: 12, color: "#ffffff" },
-            leaf: { opacity: 0.8 },
-            marker: { line: { width: 2, color: "#0b0c10" } }
-        }];
+        function updateDashboardUI(stocks) {
+            const tickerContainer = document.getElementById("ticker-list");
 
-        const layout = {
-            margin: { l: 0, r: 0, b: 0, t: 0 },
-            paper_bgcolor: "rgba(0,0,0,0)",
-            plot_bgcolor: "rgba(0,0,0,0)",
-            font: { color: "#c5c6c7" }
-        };
+            if (!stocks || stocks.length === 0) {
+                tickerContainer.innerHTML = '<p style="text-align: center; color: #888; padding: 20px;">No stocks match the target criteria.</p>';
+                Plotly.purge('sunburstChart');
+                return;
+            }
 
-        Plotly.newPlot('sunburstChart', sunburstData, layout, { responsive: true, displayModeBar: false });
+            // Construct Multi-Layer Sunburst Arrays
+            const labels = ["Portfolio"];
+            const parents = [""];
+            const values = [null]; 
 
-        // 2. Render Ticker Cards
-        if (tickerContainer) {
+            const uniqueSectors = [...new Set(stocks.map(s => s.sector))];
+            
+            // Level 1: Sector Nodes
+            uniqueSectors.forEach(sector => {
+                labels.push(sector);
+                parents.push("Portfolio");
+                values.push(null);
+            });
+
+            // Level 2: Ticker Nodes
+            stocks.forEach(stock => {
+                labels.push(stock.symbol);
+                parents.push(stock.sector);
+                values.push(stock.price);
+            });
+
+            const sunburstData = [{
+                type: "sunburst",
+                labels: labels,
+                parents: parents,
+                values: values,
+                branchvalues: "remainder",
+                outsidetextfont: { size: 12, color: "#ffffff" },
+                leaf: { opacity: 0.8 },
+                marker: { line: { width: 2, color: "#0b0c10" } }
+            }];
+
+            const layout = {
+                margin: { l: 0, r: 0, b: 0, t: 0 },
+                paper_bgcolor: "rgba(0,0,0,0)",
+                plot_bgcolor: "rgba(0,0,0,0)",
+                font: { color: "#c5c6c7" }
+            };
+
+            Plotly.newPlot('sunburstChart', sunburstData, layout, { responsive: true, displayModeBar: false });
+
+            // Render Ticker Cards inside right panel
             tickerContainer.innerHTML = stocks.map(stock => {
                 const isPositive = stock.change >= 0;
                 const changeColor = isPositive ? '#66fcf1' : '#ff4d4d';
@@ -274,10 +293,9 @@
                 `;
             }).join('');
         }
-    }
 
-    refreshDashboard();
-    setInterval(refreshDashboard, 30000);
-</script>
+        refreshDashboard();
+        setInterval(refreshDashboard, 30000);
+    </script>
 </body>
 </html>
