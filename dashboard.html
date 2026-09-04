@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Financial Statistics & Stock Dashboard</title>
+    <!-- Load Plotly.js for dark-theme interactive sunburst visual -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        body {
+            background-color: #0b0c10;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 280px 1fr 280px;
+            gap: 20px;
+            height: 90vh;
+        }
+        .card {
+            background: #1f2833;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        .kpi-title { color: #8892b0; font-size: 0.85em; text-transform: uppercase; }
+        .kpi-value { font-size: 2em; font-weight: bold; margin: 10px 0; color: #66fcf1; }
+        .ticker-row {
+            display: flex; justify-content: space-between;
+            padding: 10px 0; border-bottom: 1px solid #45a29e;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard-container">
+        <!-- Left Column: Key Performance Indicators -->
+        <div class="card">
+            <h3>Portfolio Stats</h3>
+            <div style="margin-bottom: 25px;">
+                <div class="kpi-title">Total Portfolio</div>
+                <div class="kpi-value">$1,000.00</div>
+            </div>
+            <div style="margin-bottom: 25px;">
+                <div class="kpi-title">Active Cash</div>
+                <div class="kpi-value">$100.00</div>
+            </div>
+            <div>
+                <div class="kpi-title">Target Goal</div>
+                <div class="kpi-value" style="color: #45a29e;">86%</div>
+            </div>
+        </div>
+
+        <!-- Center Column: Sunburst Radial Chart -->
+        <div class="card" id="sunburstChart"></div>
+
+        <!-- Right Column: Live Low-Cost Tickers -->
+        <div class="card">
+            <h3>Low-Cost Holdings</h3>
+            <div class="ticker-row"><span>RIG</span> <span>$6.02</span></div>
+            <div class="ticker-row"><span>LCID</span> <span>$4.60</span></div>
+            <div class="ticker-row"><span>SNDL</span> <span>$1.41</span></div>
+        </div>
+    </div>
+
+    <script>
+        // Data structure mapping Portfolio -> Sectors -> Individual Tickers
+        var data = [{
+            type: "sunburst",
+            labels: ["Portfolio", "Energy", "EVs", "Retail", "RIG", "LCID", "SNDL"],
+            parents: ["", "Portfolio", "Portfolio", "Portfolio", "Energy", "EVs", "Retail"],
+            values:  [1000, 333, 333, 334, 333, 333, 334],
+            outsidetextfont: {size: 14, color: "#ffffff"},
+            leaf: {opacity: 0.8},
+            marker: {
+                line: {width: 2, color: "#0b0c10"},
+                colors: ["#1f2833", "#45a29e", "#66fcf1", "#c5c6c7", "#45a29e", "#66fcf1", "#c5c6c7"]
+            }
+        }];
+
+        var layout = {
+            margin: {l: 0, r: 0, b: 0, t: 0},
+            paper_bgcolor: "rgba(0,0,0,0)",
+            plot_bgcolor: "rgba(0,0,0,0)",
+            sunburstcolorway:["#66fcf1", "#45a29e"]
+        };
+
+        Plotly.newPlot('sunburstChart', data, layout, {responsive: true});
+    </script>
+</body>
+</html>
