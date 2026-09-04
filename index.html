@@ -390,27 +390,27 @@
 
     const headers = ["Symbol", "Sector", "Price", "Change Percent", "Target Hit", "Volume", "Market Cap"];
     
-    // Clean string values (remove commas inside numbers/strings to prevent Calc separator confusion)
     const csvRows = [
-        headers.join(","),
+        // Wrap headers in quotes so spaces in "Change Percent" don't create extra columns
+        headers.map(h => `"${h}"`).join(","),
+        
         ...currentlyDisplayedStocks.map(s => {
-            const cleanSector = s.sector ? s.sector.replace(/,/g, " ") : "";
-            const cleanVolume = s.volume ? String(s.volume).replace(/,/g, "") : "";
-            const cleanMarketCap = s.market_cap ? String(s.market_cap).replace(/,/g, "") : "";
+            const cleanSector = s.sector ? s.sector.replace(/"/g, '""') : "";
+            const cleanVolume = s.volume ? String(s.volume).replace(/,/g, "") : "N/A";
+            const cleanMarketCap = s.market_cap ? String(s.market_cap).replace(/,/g, "") : "N/A";
             
             return [
-                s.symbol,
-                cleanSector,
-                s.price.toFixed(2),
-                s.change.toFixed(2),
-                s.target_hit ? "YES" : "NO",
-                cleanVolume,
-                cleanMarketCap
+                `"${s.symbol}"`,
+                `"${cleanSector}"`,
+                `"${s.price.toFixed(2)}"`,
+                `"${s.change.toFixed(2)}"`,
+                `"${s.target_hit ? "YES" : "NO"}"`,
+                `"${cleanVolume}"`,
+                `"${cleanMarketCap}"`
             ].join(",");
         })
     ];
 
-    // \uFEFF forces UTF-8 encoding so OpenOffice and Excel parse text cleanly
     const csvString = "\uFEFF" + csvRows.join("\r\n");
     
     const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
