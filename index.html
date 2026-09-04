@@ -383,38 +383,41 @@
         }
 
         function exportToCSV() {
-            if (!currentlyDisplayedStocks || currentlyDisplayedStocks.length === 0) {
-                alert("No stock data available to export.");
-                return;
-            }
+    if (!currentlyDisplayedStocks || currentlyDisplayedStocks.length === 0) {
+        alert("No stock data available to export.");
+        return;
+    }
 
-            const headers = ["Symbol", "Sector", "Price ($)", "Change (%)", "Target Hit ($5-$10)", "Volume", "Market Cap"];
-            
-            const csvRows = [
-                headers.join(","),
-                ...currentlyDisplayedStocks.map(s => [
-                    `"${s.symbol}"`,
-                    `"${s.sector}"`,
-                    s.price.toFixed(2),
-                    s.change.toFixed(2),
-                    s.target_hit ? "YES" : "NO",
-                    `"${s.volume}"`,
-                    `"${s.market_cap}"`
-                ].join(","))
-            ];
+    const headers = ["Symbol", "Sector", "Price ($)", "Change (%)", "Target Hit ($5-$10)", "Volume", "Market Cap"];
+    
+    const csvRows = [
+        headers.join(","),
+        ...currentlyDisplayedStocks.map(s => [
+            `"${s.symbol}"`,
+            `"${s.sector}"`,
+            s.price.toFixed(2),
+            s.change.toFixed(2),
+            s.target_hit ? "YES" : "NO",
+            `"${s.volume}"`,
+            `"${s.market_cap}"`
+        ].join(","))
+    ];
 
-            const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
-            const encodedUri = encodeURI(csvContent);
-            
-            const link = document.createElement("a");
-            const dateStr = new Date().toISOString().slice(0,10);
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `stock_snapshot_${dateStr}.csv`);
-            document.body.appendChild(link);
-            
-            link.click();
-            document.body.removeChild(link);
-        }
+    // Adding \uFEFF adds a UTF-8 Byte Order Mark (BOM) so OpenOffice Calc handles special characters & columns properly
+    const csvString = "\uFEFF" + csvRows.join("\n");
+    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement("a");
+    const dateStr = new Date().toISOString().slice(0, 10);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `stock_snapshot_${dateStr}.csv`);
+    document.body.appendChild(link);
+    
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
 
         async function searchAndAddStock() {
             const input = document.getElementById("symbolInput");
