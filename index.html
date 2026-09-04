@@ -3,661 +3,315 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Low-Cost Stock Dashboard</title>
-
-    <link rel="stylesheet" href="style.css">
+    <title>AI Paper Trading & Stock Dashboard</title>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
-
     <style>
-        /* Search Bar & Toolbar Styling */
-        .search-container {
+        :root {
+            --bg-dark: #121212;
+            --card-dark: #1e1e1e;
+            --text-main: #e0e0e0;
+            --accent-green: #00e676;
+            --accent-red: #ff5252;
+            --border-color: #333;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        h1 { margin: 0; font-size: 1.5rem; }
+
+        /* Portfolio Bar */
+        .portfolio-card {
+            background-color: var(--card-dark);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            text-align: center;
+        }
+
+        .portfolio-stat {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .portfolio-stat .label { font-size: 0.85rem; color: #888; margin-bottom: 5px; }
+        .portfolio-stat .val { font-size: 1.25rem; font-weight: bold; }
+
+        /* Controls & Search */
+        .controls {
             display: flex;
             gap: 10px;
             margin-bottom: 20px;
-            justify-content: center;
-            align-items: center;
         }
 
-        .search-input {
-            background-color: #1f2833;
-            border: 1px solid #45a29e;
-            color: #ffffff;
-            padding: 10px 16px;
-            border-radius: 8px;
-            font-size: 0.95rem;
-            outline: none;
-            width: 260px;
-            transition: border-color 0.2s;
-        }
-
-        .search-input:focus {
-            border-color: #66fcf1;
-            box-shadow: 0 0 8px rgba(102, 252, 241, 0.3);
-        }
-
-        .btn-add {
-            background-color: #45a29e;
-            color: #0b0c10;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background-color 0.2s, transform 0.1s;
-        }
-
-        .btn-add:hover {
-            background-color: #66fcf1;
-        }
-
-        .btn-add:active {
-            transform: scale(0.97);
-        }
-
-        .search-message {
-            font-size: 0.85rem;
-            margin-top: -12px;
-            margin-bottom: 15px;
-            text-align: center;
-            height: 18px;
-        }
-
-        /* Controls Toolbar in Ticker Card Header */
-        .card-header-actions {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .btn-export {
-            background-color: transparent;
-            border: 1px solid #00c853;
-            color: #00c853;
-            padding: 5px 12px;
+        input[type="text"] {
+            background: var(--card-dark);
+            border: 1px solid var(--border-color);
+            color: #fff;
+            padding: 10px;
             border-radius: 6px;
+            flex-grow: 1;
+        }
+
+        button {
+            background-color: #333;
+            color: #fff;
+            border: 1px solid var(--border-color);
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        button:hover { background-color: #444; }
+        button.btn-buy { background-color: rgba(0, 230, 118, 0.2); color: var(--accent-green); border-color: var(--accent-green); }
+        button.btn-sell { background-color: rgba(255, 82, 82, 0.2); color: var(--accent-red); border-color: var(--accent-red); }
+        button.btn-buy:hover { background-color: var(--accent-green); color: #000; }
+        button.btn-sell:hover { background-color: var(--accent-red); color: #fff; }
+
+        /* Stock Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: var(--card-dark);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th { background-color: #252525; color: #aaa; font-weight: 600; }
+
+        .green { color: var(--accent-green); }
+        .red { color: var(--accent-red); }
+
+        .action-btns {
+            display: flex;
+            gap: 5px;
+        }
+
+        .action-btns button {
+            padding: 4px 8px;
             font-size: 0.8rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background-color 0.2s, color 0.2s;
-        }
-
-        .btn-export:hover {
-            background-color: #00c853;
-            color: #0b0c10;
-        }
-
-        /* Sync Controls & Countdown Ring */
-        .sync-controls {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background-color: #1f2833;
-            border: 1px solid #45a29e;
-            padding: 10px 20px;
-            border-radius: 8px;
-            margin-top: 15px;
-        }
-
-        .timer-widget {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .countdown-container {
-            position: relative;
-            width: 32px;
-            height: 32px;
-        }
-
-        .countdown-svg {
-            transform: rotate(-90deg);
-            width: 32px;
-            height: 32px;
-        }
-
-        .countdown-bg {
-            fill: none;
-            stroke: #0b0c10;
-            stroke-width: 3.5;
-        }
-
-        .countdown-progress {
-            fill: none;
-            stroke: #66fcf1;
-            stroke-width: 3.5;
-            stroke-linecap: round;
-            stroke-dasharray: 88;
-            stroke-dashoffset: 0;
-            transition: stroke-dashoffset 1s linear;
-        }
-
-        .countdown-text {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 0.75rem;
-            font-weight: bold;
-            color: #66fcf1;
-        }
-
-        .btn-toggle-sync {
-            background-color: transparent;
-            border: 1px solid #66fcf1;
-            color: #66fcf1;
-            padding: 5px 12px;
-            border-radius: 6px;
-            font-size: 0.85rem;
-            cursor: pointer;
-            transition: background-color 0.2s, color 0.2s;
-        }
-
-        .btn-toggle-sync:hover {
-            background-color: #66fcf1;
-            color: #0b0c10;
-        }
-
-        .btn-toggle-sync.paused {
-            border-color: #ffd700;
-            color: #ffd700;
-        }
-
-        .btn-toggle-sync.paused:hover {
-            background-color: #ffd700;
-            color: #0b0c10;
-        }
-
-        /* Modal Overlay Styles */
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.8);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .modal-content {
-            background-color: #1f2833;
-            border-radius: 12px;
-            padding: 24px;
-            width: 90%;
-            max-width: 650px;
-            border: 1px solid #66fcf1;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.7);
-            position: relative;
-        }
-
-        .close-btn {
-            position: absolute;
-            top: 15px;
-            right: 20px;
-            font-size: 1.5rem;
-            color: #888;
-            cursor: pointer;
-        }
-
-        .close-btn:hover {
-            color: #ff4d4d;
-        }
-
-        #historyChart {
-            width: 100%;
-            height: 350px;
         }
     </style>
 </head>
 <body>
 
-    <div class="dashboard-container">
-        <header>
-            <h1>Low-Cost Stock Tracker</h1>
-            <p>Real-Time Tracking Engine ($5–$10 Focus)</p>
-        </header>
+<div class="container">
+    <header>
+        <h1>AI Stock Dashboard & Paper Trader</h1>
+        <button onclick="exportToCSV()">Export CSV</button>
+    </header>
 
-        <!-- KPI Summary Strip -->
-        <div class="kpi-bar">
-            <div class="kpi-card">
-                <h3>Total Tracked</h3>
-                <div class="kpi-value" id="kpi-total">--</div>
-            </div>
-            <div class="kpi-card target">
-                <h3>Target ($5–$10) Hits</h3>
-                <div class="kpi-value" id="kpi-targets" style="color: #ffd700;">--</div>
-            </div>
-            <div class="kpi-card gainer">
-                <h3>Top Gainer</h3>
-                <div class="kpi-value" id="kpi-gainer" style="color: #00c853;">--</div>
-            </div>
-            <div class="kpi-card loser">
-                <h3>Top Loser</h3>
-                <div class="kpi-value" id="kpi-loser" style="color: #d32f2f;">--</div>
-            </div>
+    <!-- VIRTUAL PORTFOLIO BANNER -->
+    <div class="portfolio-card">
+        <div class="portfolio-stat">
+            <span class="label">Virtual Cash</span>
+            <span class="val green" id="portfolio-cash">$10,000.00</span>
         </div>
-
-        <!-- Custom Search Bar -->
-        <div class="search-container">
-            <input type="text" id="symbolInput" class="search-input" placeholder="Enter Ticker (e.g., TSLA, AAPL, F)" onkeypress="handleKeyPress(event)">
-            <button class="btn-add" onclick="searchAndAddStock()">+ Add Ticker</button>
+        <div class="portfolio-stat">
+            <span class="label">Active Holdings</span>
+            <span class="val" id="portfolio-holdings-count">0 Positions</span>
         </div>
-        <div id="searchMsg" class="search-message"></div>
-
-        <div class="content-grid">
-            <!-- Left Column: Heatmap Sunburst Chart -->
-            <div class="card">
-                <div class="card-header">
-                    <h2>Portfolio Allocation Heatmap</h2>
-                </div>
-                <div id="sunburstChart"></div>
-            </div>
-
-            <!-- Right Column: Ticker List Card -->
-            <div class="card">
-                <div class="card-header">
-                    <h2>Watched Tickers</h2>
-                    <div class="card-header-actions">
-                        <button class="btn-export" onclick="exportToCSV()" title="Download current ticker list as CSV">📥 Export CSV</button>
-                        <label class="toggle-label">
-                            <input type="checkbox" id="targetFilterToggle" onchange="handleFilterToggle()" style="cursor: pointer; accent-color: #ffd700;">
-                            Target ($5–$10)
-                        </label>
-                    </div>
-                </div>
-                <div id="ticker-list" class="ticker-list">
-                    <p style="text-align: center; color: #888;">Connecting to backend engine...</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Status & Sync Bar -->
-        <div class="sync-controls">
-            <div id="last-updated" style="color: #45a29e; font-size: 0.9rem;">
-                Status: Initializing connection...
-            </div>
-
-            <div class="timer-widget">
-                <div class="countdown-container">
-                    <svg class="countdown-svg">
-                        <circle class="countdown-bg" cx="16" cy="16" r="14"></circle>
-                        <circle id="timerProgress" class="countdown-progress" cx="16" cy="16" r="14"></circle>
-                    </svg>
-                    <div id="timerText" class="countdown-text">30</div>
-                </div>
-                <button id="toggleSyncBtn" class="btn-toggle-sync" onclick="toggleAutoSync()">Pause Sync</button>
-            </div>
+        <div class="portfolio-stat">
+            <span class="label">Total Account Equity</span>
+            <span class="val" id="portfolio-total-equity">$10,000.00</span>
         </div>
     </div>
 
-    <!-- Historical Chart Modal Popup -->
-    <div id="chartModal" class="modal-overlay" onclick="closeModal(event)">
-        <div class="modal-content" onclick="event.stopPropagation()">
-            <span class="close-btn" onclick="closeModal()">&times;</span>
-            <h2 id="modalTitle" style="color: #66fcf1; margin-bottom: 15px;">30-Day Trend</h2>
-            <div id="historyChart"></div>
-        </div>
+    <!-- CONTROLS -->
+    <div class="controls">
+        <input type="text" id="ticker-input" placeholder="Enter Ticker (e.g. AAPL, NVDA)...">
+        <button onclick="addTicker()">Add Ticker</button>
+        <button onclick="fetchDashboardData()">Force Refresh</button>
     </div>
 
-    <script>
-        const BASE_API_URL = "https://my-stock-tracker-api.onrender.com"; 
-        
-        let rawStockData = [];
-        let customSymbols = [];
-        let currentlyDisplayedStocks = [];
-        
-        const REFRESH_INTERVAL_SECONDS = 30;
-        let countdown = REFRESH_INTERVAL_SECONDS;
-        let isSyncPaused = false;
-        let timerInterval = null;
+    <!-- STOCKS TABLE -->
+    <table>
+        <thead>
+            <tr>
+                <th>Symbol</th>
+                <th>Sector</th>
+                <th>Price ($)</th>
+                <th>Change (%)</th>
+                <th>Target Hit</th>
+                <th>Owned Shares</th>
+                <th>Quick Trade</th>
+            </tr>
+        </thead>
+        <tbody id="stock-table-body">
+            <tr><td colspan="7" style="text-align:center;">Loading market data...</td></tr>
+        </tbody>
+    </table>
+</div>
 
-        async function refreshDashboard() {
-            try {
-                const response = await fetch(`${BASE_API_URL}/api/stocks`);
-                const result = await response.json();
-                
-                if (result.status === "success" && result.data) {
-                    let combinedData = [...result.data];
+<script>
+    // Adjust API_BASE to match local vs production endpoint automatically
+    const API_BASE = window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost"
+        ? "http://127.0.0.1:8501"
+        : "https://my-stock-tracker-api.onrender.com";
 
-                    for (const sym of customSymbols) {
-                        if (!combinedData.some(s => s.symbol === sym)) {
-                            const customRes = await fetch(`${BASE_API_URL}/api/stock/${sym}`);
-                            const customResult = await customRes.json();
-                            if (customResult.status === "success") {
-                                combinedData.push(customResult.data);
-                            }
-                        }
-                    }
+    let currentlyDisplayedStocks = [];
+    let currentPortfolio = { cash: 10000, holdings: {} };
 
-                    rawStockData = combinedData;
-                    applyFiltersAndRender();
-                    document.getElementById("last-updated").innerText = `Status: Live | Last synced: ${new Date().toLocaleTimeString()}`;
-                    document.getElementById("last-updated").style.color = "#45a29e";
-                }
-            } catch (error) {
-                console.error("Error connecting to backend:", error);
-                document.getElementById("last-updated").innerText = "Status: Backend Disconnected";
-                document.getElementById("last-updated").style.color = "#ff4d4d";
+    async function fetchPortfolio() {
+        try {
+            const res = await fetch(`${API_BASE}/portfolio`);
+            if (res.ok) {
+                currentPortfolio = await res.json();
+                updatePortfolioUI();
             }
+        } catch (err) {
+            console.error("Error fetching portfolio:", err);
         }
-
-        function startTimer() {
-            if (timerInterval) clearInterval(timerInterval);
-            
-            const totalDash = 88;
-            
-            timerInterval = setInterval(() => {
-                if (isSyncPaused) return;
-
-                countdown--;
-
-                document.getElementById("timerText").innerText = countdown;
-                const offset = totalDash - (countdown / REFRESH_INTERVAL_SECONDS) * totalDash;
-                document.getElementById("timerProgress").style.strokeDashoffset = offset;
-
-                if (countdown <= 0) {
-                    countdown = REFRESH_INTERVAL_SECONDS;
-                    document.getElementById("timerProgress").style.strokeDashoffset = 0;
-                    refreshDashboard();
-                }
-            }, 1000);
-        }
-
-        function toggleAutoSync() {
-            isSyncPaused = !isSyncPaused;
-            const btn = document.getElementById("toggleSyncBtn");
-            const progressCircle = document.getElementById("timerProgress");
-
-            if (isSyncPaused) {
-                btn.innerText = "Resume Sync";
-                btn.classList.add("paused");
-                progressCircle.style.stroke = "#ffd700";
-            } else {
-                btn.innerText = "Pause Sync";
-                btn.classList.remove("paused");
-                progressCircle.style.stroke = "#66fcf1";
-            }
-        }
-
-        function exportToCSV() {
-    if (!currentlyDisplayedStocks || currentlyDisplayedStocks.length === 0) {
-        alert("No stock data available to export.");
-        return;
     }
 
-    const headers = ["Symbol", "Sector", "Price", "Change Percent", "Target Hit", "Volume", "Market Cap"];
-    
-    const csvRows = [
-        // Wrap headers in quotes so spaces in "Change Percent" don't create extra columns
-        headers.map(h => `"${h}"`).join(","),
+    function updatePortfolioUI() {
+        document.getElementById("portfolio-cash").innerText = `$${currentPortfolio.cash.toFixed(2)}`;
         
-        ...currentlyDisplayedStocks.map(s => {
-            const cleanSector = s.sector ? s.sector.replace(/"/g, '""') : "";
-            const cleanVolume = s.volume ? String(s.volume).replace(/,/g, "") : "N/A";
-            const cleanMarketCap = s.market_cap ? String(s.market_cap).replace(/,/g, "") : "N/A";
-            
-            return [
-                `"${s.symbol}"`,
-                `"${cleanSector}"`,
-                `"${s.price.toFixed(2)}"`,
-                `"${s.change.toFixed(2)}"`,
-                `"${s.target_hit ? "YES" : "NO"}"`,
-                `"${cleanVolume}"`,
-                `"${cleanMarketCap}"`
-            ].join(",");
-        })
-    ];
+        const holdingsKeys = Object.keys(currentPortfolio.holdings || {});
+        document.getElementById("portfolio-holdings-count").innerText = `${holdingsKeys.length} Positions`;
 
-    const csvString = "\uFEFF" + csvRows.join("\r\n");
-    
-    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    
-    const link = document.createElement("a");
-    const dateStr = new Date().toISOString().slice(0, 10);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `stock_snapshot_${dateStr}.csv`);
-    document.body.appendChild(link);
-    
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-}
+        // Calculate total equity (cash + position values)
+        let holdingsValue = 0;
+        holdingsKeys.forEach(symbol => {
+            const holding = currentPortfolio.holdings[symbol];
+            const stock = currentlyDisplayedStocks.find(s => s.symbol === symbol);
+            const currentPrice = stock ? stock.price : holding.avg_price;
+            holdingsValue += holding.shares * currentPrice;
+        });
 
-        async function searchAndAddStock() {
-            const input = document.getElementById("symbolInput");
-            const symbol = input.value.trim().toUpperCase();
-            const msgEl = document.getElementById("searchMsg");
+        const totalEquity = currentPortfolio.cash + holdingsValue;
+        document.getElementById("portfolio-total-equity").innerText = `$${totalEquity.toFixed(2)}`;
+    }
 
-            if (!symbol) return;
+    async function fetchDashboardData() {
+        try {
+            const res = await fetch(`${API_BASE}/stocks`);
+            if (res.ok) {
+                currentlyDisplayedStocks = await res.json();
+                await fetchPortfolio();
+                renderTable();
+            }
+        } catch (err) {
+            console.error("Error fetching stock data:", err);
+        }
+    }
 
-            if (rawStockData.some(s => s.symbol === symbol)) {
-                msgEl.style.color = "#ffd700";
-                msgEl.innerText = `${symbol} is already on your watchlist.`;
+    function renderTable() {
+        const tbody = document.getElementById("stock-table-body");
+        tbody.innerHTML = "";
+
+        currentlyDisplayedStocks.forEach(s => {
+            const isGreen = s.change >= 0;
+            const changeClass = isGreen ? "green" : "red";
+            const changeSign = isGreen ? "+" : "";
+            const owned = currentPortfolio.holdings[s.symbol] ? currentPortfolio.holdings[s.symbol].shares : 0;
+
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td><strong>${s.symbol}</strong></td>
+                <td>${s.sector}</td>
+                <td>$${s.price.toFixed(2)}</td>
+                <td class="${changeClass}">${changeSign}${s.change.toFixed(2)}%</td>
+                <td>${s.target_hit ? '<span class="green">YES</span>' : 'NO'}</td>
+                <td><strong>${owned}</strong></td>
+                <td class="action-btns">
+                    <button class="btn-buy" onclick="executeTrade('${s.symbol}', 'buy')">Buy 10</button>
+                    <button class="btn-sell" onclick="executeTrade('${s.symbol}', 'sell')">Sell 10</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function executeTrade(symbol, type) {
+        try {
+            const endpoint = `${API_BASE}/${type}`;
+            const response = await fetch(endpoint, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ticker: symbol, shares: 10 })
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                alert(data.detail || "Trade failed");
                 return;
             }
 
-            msgEl.style.color = "#66fcf1";
-            msgEl.innerText = `Searching market for ${symbol}...`;
+            alert(data.message);
+            await fetchDashboardData();
+        } catch (err) {
+            alert("Error connecting to trading server.");
+        }
+    }
 
-            try {
-                const response = await fetch(`${BASE_API_URL}/api/stock/${symbol}`);
-                const result = await response.json();
-
-                if (result.status === "success" && result.data) {
-                    rawStockData.push(result.data);
-                    if (!customSymbols.includes(symbol)) customSymbols.push(symbol);
-
-                    applyFiltersAndRender();
-                    input.value = "";
-                    msgEl.style.color = "#00c853";
-                    msgEl.innerText = `Successfully added ${symbol}!`;
-                    setTimeout(() => { msgEl.innerText = ""; }, 3000);
-                } else {
-                    msgEl.style.color = "#ff4d4d";
-                    msgEl.innerText = result.message || "Symbol not found.";
-                }
-            } catch (err) {
-                msgEl.style.color = "#ff4d4d";
-                msgEl.innerText = "Error fetching stock data.";
-            }
+    function exportToCSV() {
+        if (!currentlyDisplayedStocks || currentlyDisplayedStocks.length === 0) {
+            alert("No data available to export.");
+            return;
         }
 
-        function handleKeyPress(e) {
-            if (e.key === "Enter") searchAndAddStock();
-        }
+        const headers = ["Symbol", "Sector", "Price", "Change Percent", "Target Hit", "Owned Shares"];
+        const csvRows = [
+            headers.map(h => `"${h}"`).join(","),
+            ...currentlyDisplayedStocks.map(s => {
+                const owned = currentPortfolio.holdings[s.symbol] ? currentPortfolio.holdings[s.symbol].shares : 0;
+                return [
+                    `"${s.symbol}"`,
+                    `"${s.sector}"`,
+                    `"${s.price.toFixed(2)}"`,
+                    `"${s.change.toFixed(2)}"`,
+                    `"${s.target_hit ? "YES" : "NO"}"`,
+                    `"${owned}"`
+                ].join(",");
+            })
+        ];
 
-        function handleFilterToggle() {
-            applyFiltersAndRender();
-        }
+        const csvString = "\uFEFF" + csvRows.join("\r\n");
+        const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `paper_portfolio_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
 
-        function applyFiltersAndRender() {
-            const showTargetOnly = document.getElementById("targetFilterToggle").checked;
-            
-            currentlyDisplayedStocks = showTargetOnly 
-                ? rawStockData.filter(stock => stock.target_hit)
-                : rawStockData;
-
-            updateDashboardUI(currentlyDisplayedStocks);
-            updateKPIs(rawStockData);
-        }
-
-        function updateKPIs(allStocks) {
-            if (!allStocks || allStocks.length === 0) return;
-
-            document.getElementById("kpi-total").innerText = allStocks.length;
-
-            const targetHits = allStocks.filter(s => s.target_hit).length;
-            document.getElementById("kpi-targets").innerText = targetHits;
-
-            const sortedByPerformance = [...allStocks].sort((a, b) => b.change - a.change);
-            const topGainer = sortedByPerformance[0];
-            const topLoser = sortedByPerformance[sortedByPerformance.length - 1];
-
-            if (topGainer) {
-                document.getElementById("kpi-gainer").innerText = `${topGainer.symbol} (+${topGainer.change}%)`;
-            }
-
-            if (topLoser) {
-                document.getElementById("kpi-loser").innerText = `${topLoser.symbol} (${topLoser.change}%)`;
-            }
-        }
-
-        function getPerformanceColor(pctChange) {
-            if (pctChange > 3) return "#00c853";
-            if (pctChange > 0) return "#4caf50";
-            if (pctChange === 0) return "#78909c";
-            if (pctChange > -3) return "#e57373";
-            return "#d32f2f";
-        }
-
-        function updateDashboardUI(stocks) {
-            const tickerContainer = document.getElementById("ticker-list");
-
-            if (!stocks || stocks.length === 0) {
-                tickerContainer.innerHTML = '<p style="text-align: center; color: #888; padding: 20px;">No stocks match criteria.</p>';
-                Plotly.purge('sunburstChart');
-                return;
-            }
-
-            const sectorData = {};
-            stocks.forEach(stock => {
-                if (!sectorData[stock.sector]) {
-                    sectorData[stock.sector] = { totalPrice: 0, totalChange: 0, count: 0 };
-                }
-                sectorData[stock.sector].totalPrice += stock.price;
-                sectorData[stock.sector].totalChange += stock.change;
-                sectorData[stock.sector].count += 1;
-            });
-
-            const ids = [];
-            const labels = [];
-            const parents = [];
-            const values = [];
-            const colors = [];
-
-            Object.keys(sectorData).forEach(sector => {
-                const avgChange = sectorData[sector].totalChange / sectorData[sector].count;
-                ids.push(sector);
-                labels.push(sector);
-                parents.push("");
-                values.push(sectorData[sector].totalPrice);
-                colors.push(getPerformanceColor(avgChange));
-            });
-
-            stocks.forEach(stock => {
-                ids.push(`${stock.sector}-${stock.symbol}`);
-                labels.push(`${stock.symbol}<br>${stock.change >= 0 ? '+' : ''}${stock.change}%`);
-                parents.push(stock.sector);
-                values.push(stock.price);
-                colors.push(getPerformanceColor(stock.change));
-            });
-
-            const sunburstData = [{
-                type: "sunburst",
-                ids: ids,
-                labels: labels,
-                parents: parents,
-                values: values,
-                branchvalues: "total",
-                outsidetextfont: { size: 12, color: "#ffffff" },
-                leaf: { opacity: 0.9 },
-                marker: { 
-                    colors: colors,
-                    line: { width: 2, color: "#0b0c10" } 
-                }
-            }];
-
-            const layout = {
-                margin: { l: 0, r: 0, b: 0, t: 0 },
-                paper_bgcolor: "rgba(0,0,0,0)",
-                plot_bgcolor: "rgba(0,0,0,0)",
-                font: { color: "#c5c6c7" }
-            };
-
-            Plotly.newPlot('sunburstChart', sunburstData, layout, { responsive: true, displayModeBar: false });
-
-            tickerContainer.innerHTML = stocks.map(stock => {
-                const isPositive = stock.change >= 0;
-                const changeColor = isPositive ? '#66fcf1' : '#ff4d4d';
-                const changeSign = isPositive ? '+' : '';
-
-                const alertClass = stock.target_hit ? 'target-alert' : '';
-                const badgeHtml = stock.target_hit ? '<span class="badge">TARGET $5-$10</span>' : '';
-
-                return `
-                    <div class="ticker-row ${alertClass}" onclick="openHistoryModal('${stock.symbol}')">
-                        <div>
-                            <span class="ticker-symbol">${stock.symbol}</span>
-                            <small style="color: #888; font-size: 0.75rem; margin-left: 4px;">(${stock.sector})</small>
-                            ${badgeHtml}
-                        </div>
-                        <span class="ticker-price" style="color: ${changeColor};">
-                            $${stock.price.toFixed(2)} (${changeSign}${stock.change}%)
-                        </span>
-
-                        <div class="stock-hover-card">
-                            <h4>${stock.symbol} Overview</h4>
-                            <p><strong>Sector:</strong> ${stock.sector}</p>
-                            <p><strong>Price:</strong> $${stock.price.toFixed(2)}</p>
-                            <p><strong>Change:</strong> ${changeSign}${stock.change}%</p>
-                            <p><strong>Market Cap:</strong> ${stock.market_cap}</p>
-                            <p><strong>Volume:</strong> ${stock.volume}</p>
-                            <p><strong>Target Range:</strong> ${stock.target_hit ? 'YES ($5–$10)' : 'NO'}</p>
-                            <p style="color: #66fcf1; margin-top: 5px;"><em>Click row for 30-day chart</em></p>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        async function openHistoryModal(symbol) {
-            const modal = document.getElementById("chartModal");
-            document.getElementById("modalTitle").innerText = `${symbol} - 30 Day Price Trend`;
-            modal.style.display = "flex";
-
-            Plotly.purge('historyChart');
-
-            try {
-                const response = await fetch(`${BASE_API_URL}/api/history/${symbol}`);
-                const data = await response.json();
-
-                if (data.status === "success") {
-                    const lineTrace = {
-                        x: data.dates,
-                        y: data.prices,
-                        type: 'scatter',
-                        mode: 'lines+markers',
-                        line: { color: '#66fcf1', width: 3 },
-                        marker: { color: '#45a29e', size: 6 }
-                    };
-
-                    const layout = {
-                        margin: { l: 40, r: 20, b: 40, t: 20 },
-                        paper_bgcolor: "rgba(0,0,0,0)",
-                        plot_bgcolor: "rgba(0,0,0,0)",
-                        xaxis: { color: '#c5c6c7', showgrid: false },
-                        yaxis: { color: '#c5c6c7', gridcolor: '#1f2833', tickprefix: '$' },
-                        font: { color: "#c5c6c7" }
-                    };
-
-                    Plotly.newPlot('historyChart', [lineTrace], layout, { responsive: true, displayModeBar: false });
-                }
-            } catch (err) {
-                console.error("Error loading history chart:", err);
-            }
-        }
-
-        function closeModal(event) {
-            document.getElementById("chartModal").style.display = "none";
-        }
-
-        // Initialize dashboard and timer
-        refreshDashboard();
-        startTimer();
-    </script>
+    // Initial Load
+    fetchDashboardData();
+</script>
 </body>
 </html>
