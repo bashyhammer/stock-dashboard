@@ -221,88 +221,88 @@
         }
 
         function updateDashboardUI(stocks) {
-    const tickerContainer = document.getElementById("ticker-list");
+            const tickerContainer = document.getElementById("ticker-list");
 
-    if (!stocks || stocks.length === 0) {
-        tickerContainer.innerHTML = '<p style="text-align: center; color: #888; padding: 20px;">No stocks match the target criteria.</p>';
-        Plotly.purge('sunburstChart');
-        return;
-    }
+            if (!stocks || stocks.length === 0) {
+                tickerContainer.innerHTML = '<p style="text-align: center; color: #888; padding: 20px;">No stocks match the target criteria.</p>';
+                Plotly.purge('sunburstChart');
+                return;
+            }
 
-    // 1. Group stock prices by sector to pass total values to Plotly
-    const sectorTotals = {};
-    stocks.forEach(stock => {
-        if (!sectorTotals[stock.sector]) {
-            sectorTotals[stock.sector] = 0;
+            // Calculate sector totals manually to pass valid values to Plotly
+            const sectorTotals = {};
+            stocks.forEach(stock => {
+                if (!sectorTotals[stock.sector]) {
+                    sectorTotals[stock.sector] = 0;
+                }
+                sectorTotals[stock.sector] += stock.price;
+            });
+
+            const ids = [];
+            const labels = [];
+            const parents = [];
+            const values = [];
+
+            // Level 1: Sector Nodes (Inner Ring)
+            Object.keys(sectorTotals).forEach(sector => {
+                ids.push(sector);
+                labels.push(sector);
+                parents.push("");
+                values.push(sectorTotals[sector]);
+            });
+
+            // Level 2: Stock Nodes (Outer Ring)
+            stocks.forEach(stock => {
+                ids.push(`${stock.sector}-${stock.symbol}`);
+                labels.push(stock.symbol);
+                parents.push(stock.sector);
+                values.push(stock.price);
+            });
+
+            const sunburstData = [{
+                type: "sunburst",
+                ids: ids,
+                labels: labels,
+                parents: parents,
+                values: values,
+                branchvalues: "total",
+                outsidetextfont: { size: 12, color: "#ffffff" },
+                leaf: { opacity: 0.8 },
+                marker: { line: { width: 2, color: "#0b0c10" } }
+            }];
+
+            const layout = {
+                margin: { l: 0, r: 0, b: 0, t: 0 },
+                paper_bgcolor: "rgba(0,0,0,0)",
+                plot_bgcolor: "rgba(0,0,0,0)",
+                font: { color: "#c5c6c7" }
+            };
+
+            Plotly.newPlot('sunburstChart', sunburstData, layout, { responsive: true, displayModeBar: false });
+
+            // Render Ticker Cards inside right panel
+            tickerContainer.innerHTML = stocks.map(stock => {
+                const isPositive = stock.change >= 0;
+                const changeColor = isPositive ? '#66fcf1' : '#ff4d4d';
+                const changeSign = isPositive ? '+' : '';
+
+                const alertClass = stock.target_hit ? 'target-alert' : '';
+                const badgeHtml = stock.target_hit ? '<span class="badge">TARGET $5-$10</span>' : '';
+
+                return `
+                    <div class="ticker-row ${alertClass}">
+                        <div>
+                            <span class="ticker-symbol">${stock.symbol}</span>
+                            <small style="color: #888; font-size: 0.75rem; margin-left: 4px;">(${stock.sector})</small>
+                            ${badgeHtml}
+                        </div>
+                        <span class="ticker-price" style="color: ${changeColor};">
+                            $${stock.price.toFixed(2)} (${changeSign}${stock.change}%)
+                        </span>
+                    </div>
+                `;
+            }).join('');
         }
-        sectorTotals[stock.sector] += stock.price;
-    });
-
-    const ids = [];
-    const labels = [];
-    const parents = [];
-    const values = [];
-
-    // Add Sector Nodes (Inner Ring)
-    Object.keys(sectorTotals).forEach(sector => {
-        ids.push(sector);
-        labels.push(sector);
-        parents.push("");
-        values.push(sectorTotals[sector]);
-    });
-
-    // Add Stock Nodes (Outer Ring)
-    stocks.forEach(stock => {
-        ids.push(`${stock.sector}-${stock.symbol}`);
-        labels.push(stock.symbol);
-        parents.push(stock.sector);
-        values.push(stock.price);
-    });
-
-    const sunburstData = [{
-        type: "sunburst",
-        ids: ids,
-        labels: labels,
-        parents: parents,
-        values: values,
-        branchvalues: "total",
-        outsidetextfont: { size: 12, color: "#ffffff" },
-        leaf: { opacity: 0.8 },
-        marker: { line: { width: 2, color: "#0b0c10" } }
-    }];
-
-    const layout = {
-        margin: { l: 0, r: 0, b: 0, t: 0 },
-        paper_bgcolor: "rgba(0,0,0,0)",
-        plot_bgcolor: "rgba(0,0,0,0)",
-        font: { color: "#c5c6c7" }
-    };
-
-    Plotly.newPlot('sunburstChart', sunburstData, layout, { responsive: true, displayModeBar: false });
-
-    // 2. Render Ticker Cards
-    tickerContainer.innerHTML = stocks.map(stock => {
-        const isPositive = stock.change >= 0;
-        const changeColor = isPositive ? '#66fcf1' : '#ff4d4d';
-        const changeSign = isPositive ? '+' : '';
-
-        const alertClass = stock.target_hit ? 'target-alert' : '';
-        const badgeHtml = stock.target_hit ? '<span class="badge">TARGET $5-$10</span>' : '';
-
-        return `
-            <div class="ticker-row ${alertClass}">
-                <div>
-                    <span class="ticker-symbol">${stock.symbol}</span>
-                    <small style="color: #888; font-size: 0.75rem; margin-left: 4px;">(${stock.sector})</small>
-                    ${badgeHtml}
-                </div>
-                <span class="ticker-price" style="color: ${changeColor};">
-                    $${stock.price.toFixed(2)} (${changeSign}${stock.change}%)
-                </span>
-            </div>
-        `;
-    }).join('');
-}
 
         refreshDashboard();
         setInterval(refreshDashboard, 30000);
