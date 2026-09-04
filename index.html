@@ -168,17 +168,16 @@
             }
         }
 
-        function updateDashboardUI(stocks) {
+    function updateDashboardUI(stocks) {
     // 1. Prepare Plotly Sunburst Data
     const labels = ["Portfolio"];
     const parents = [""];
-    const values = [0]; // Root value
+    const values = [null]; // Let Plotly calculate the root total automatically
 
     stocks.forEach(stock => {
         labels.push(stock.symbol);
         parents.push("Portfolio");
-        values.push(stock.price);
-        values[0] += stock.price; // Sum of children
+        values.push(stock.price); // Plotly sums these up natively
     });
 
     const sunburstData = [{
@@ -186,21 +185,20 @@
         labels: labels,
         parents: parents,
         values: values,
-        branchvalues: "total", // FORCES A FULL 360-DEGREE CIRCLE
         outsidetextfont: { size: 14, color: "#ffffff" },
         leaf: { opacity: 0.8 },
         marker: { line: { width: 2, color: "#0b0c10" } }
     }];
 
     const layout = {
-        margin: { l: 10, r: 10, b: 10, t: 10 },
+        margin: { l: 0, r: 0, b: 0, t: 0 },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
         font: { color: "#c5c6c7" }
     };
 
     Plotly.newPlot('sunburstChart', sunburstData, layout, { responsive: true, displayModeBar: false });
-
+}
             // 2. Render Ticker Cards
             const tickerContainer = document.getElementById("ticker-list");
             if (tickerContainer) {
