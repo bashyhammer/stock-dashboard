@@ -88,38 +88,74 @@
         };
 
         Plotly.newPlot('sunburstChart', data, layout, {responsive: true});
-    </script>
-    <!-- Add this JavaScript block right before </body> -->
+    <!-- REPLACE YOUR BOTTOM <script> BLOCK WITH THIS: -->
     <script>
-        // Points to your local FastAPI server on port 8080
         const API_URL = "http://127.0.0.1:8501/api/stocks";
 
-        async function loadLivePrices() {
+        async function refreshDashboard() {
             try {
                 const response = await fetch(API_URL);
                 const result = await response.json();
                 
-                console.log("Live Stock Data Received:", result.data);
-
-                // Example: Loop through results and update price elements if they exist
-                result.data.forEach(stock => {
-                    const priceElement = document.getElementById(`${stock.symbol.toLowerCase()}-price`);
-                    if (priceElement) {
-                        priceElement.innerText = `$${stock.price.toFixed(2)}`;
-                    }
-                });
-
+                if (result.status === "success") {
+                    updateDashboardUI(result.data);
+                }
             } catch (error) {
-                console.error("Could not connect to FastAPI server. Is main.py running?", error);
+                console.error("Error connecting to FastAPI backend:", error);
             }
         }
 
-        // Fetch prices immediately when page loads
-        loadLivePrices();
+        function updateDashboardUI(stocks) {
+            // 1. Build Sunburst Chart arrays dynamically
+            const labels = ["Portfolio"];
+            const parents = [""];
+            const values = [0]; // Dynamic sum
 
-        // Refresh automatically every 30 seconds
-        setInterval(loadLivePrices, 30000);
+            stocks.forEach(stock => {
+                labels.push(stock.symbol);
+                parents.push("Portfolio");
+                values.push(stock.price);
+                values[0] += stock.price; // Accumulate total
+            });
+
+            const sunburstData = [{
+                type: "sunburst",
+                labels: labels,
+                parents: parents,
+                values: values,
+                outsidetextfont: { size: 14, color: "#ffffff" },
+                marker: { line: { width: 2, color: "#0b0c10" } }
+            }];
+
+            const layout = {
+                margin: { l: 0, r: 0, b: 0, t: 0 },
+                paper_bgcolor: "rgba(0,0,0,0)",
+                plot_bgcolor: "rgba(0,0,0,0)"
+            };
+
+            // Renders to the <div id="sunburstChart"></div> container
+            Plotly.newPlot('sunburstChart', sunburstData, layout, { responsive: true });
+
+            // 2. Render Ticker Cards
+            const tickerContainer = document.getElementById("ticker-list");
+            if (tickerContainer) {
+                tickerContainer.innerHTML = stocks.map(stock => `
+                    <div class="ticker-row" style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <span><b>${stock.symbol}</b></span>
+                        <span style="color: ${stock.change >= 0 ? '#66fcf1' : '#ff4d4d'};">
+                            $${stock.price.toFixed(2)} (${stock.change > 0 ? '+' : ''}${stock.change}%)
+                        </span>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // Fetch prices immediately, then poll every 30 seconds
+        refreshDashboard();
+        setInterval(refreshDashboard, 30000);
     </script>
+</body>
+</html>
 </body>
 </html>
 
