@@ -62,6 +62,88 @@
             height: 18px;
         }
 
+        /* Sync Controls & Countdown Ring */
+        .sync-controls {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: #1f2833;
+            border: 1px solid #45a29e;
+            padding: 10px 20px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .timer-widget {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .countdown-container {
+            position: relative;
+            width: 32px;
+            height: 32px;
+        }
+
+        .countdown-svg {
+            transform: rotate(-90deg);
+            width: 32px;
+            height: 32px;
+        }
+
+        .countdown-bg {
+            fill: none;
+            stroke: #0b0c10;
+            stroke-width: 3.5;
+        }
+
+        .countdown-progress {
+            fill: none;
+            stroke: #66fcf1;
+            stroke-width: 3.5;
+            stroke-linecap: round;
+            stroke-dasharray: 88;
+            stroke-dashoffset: 0;
+            transition: stroke-dashoffset 1s linear;
+        }
+
+        .countdown-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.75rem;
+            font-weight: bold;
+            color: #66fcf1;
+        }
+
+        .btn-toggle-sync {
+            background-color: transparent;
+            border: 1px solid #66fcf1;
+            color: #66fcf1;
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        .btn-toggle-sync:hover {
+            background-color: #66fcf1;
+            color: #0b0c10;
+        }
+
+        .btn-toggle-sync.paused {
+            border-color: #ffd700;
+            color: #ffd700;
+        }
+
+        .btn-toggle-sync.paused:hover {
+            background-color: #ffd700;
+            color: #0b0c10;
+        }
+
         /* Modal Overlay Styles */
         .modal-overlay {
             display: none;
@@ -165,8 +247,22 @@
             </div>
         </div>
 
-        <div class="status-bar" id="last-updated">
-            Status: Initializing connection...
+        <!-- Status & Sync Bar -->
+        <div class="sync-controls">
+            <div id="last-updated" style="color: #45a29e; font-size: 0.9rem;">
+                Status: Initializing connection...
+            </div>
+
+            <div class="timer-widget">
+                <div class="countdown-container">
+                    <svg class="countdown-svg">
+                        <circle class="countdown-bg" cx="16" cy="16" r="14"></circle>
+                        <circle id="timerProgress" class="countdown-progress" cx="16" cy="16" r="14"></circle>
+                    </svg>
+                    <div id="timerText" class="countdown-text">30</div>
+                </div>
+                <button id="toggleSyncBtn" class="btn-toggle-sync" onclick="toggleAutoSync()">Pause Sync</button>
+            </div>
         </div>
     </div>
 
@@ -180,11 +276,15 @@
     </div>
 
     <script>
-        // Update this base URL with your live Render backend URL:
         const BASE_API_URL = "https://my-stock-tracker-api.onrender.com"; 
         
         let rawStockData = [];
         let customSymbols = [];
+        
+        const REFRESH_INTERVAL_SECONDS = 30;
+        let countdown = REFRESH_INTERVAL_SECONDS;
+        let isSyncPaused = false;
+        let timerInterval = null;
 
         async function refreshDashboard() {
             try {
@@ -192,10 +292,8 @@
                 const result = await response.json();
                 
                 if (result.status === "success" && result.data) {
-                    // Combine default watchlist data with any added custom stocks
                     let combinedData = [...result.data];
 
-                    // Fetch updates for custom tickers
                     for (const sym of customSymbols) {
                         if (!combinedData.some(s => s.symbol === sym)) {
                             const customRes = await fetch(`${BASE_API_URL}/api/stock/${sym}`);
@@ -218,6 +316,45 @@
             }
         }
 
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            
+            const totalDash = 88; // Circumference of radius 14 circle
+            
+            timerInterval = setInterval(() => {
+                if (isSyncPaused) return;
+
+                countdown--;
+
+                // Update UI circle and number
+                document.getElementById("timerText").innerText = countdown;
+                const offset = totalDash - (countdown / REFRESH_INTERVAL_SECONDS) * totalDash;
+                document.getElementById("timerProgress").style.strokeDashoffset = offset;
+
+                if (countdown <= 0) {
+                    countdown = REFRESH_INTERVAL_SECONDS;
+                    document.getElementById("timerProgress").style.strokeDashoffset = 0;
+                    refreshDashboard();
+                }
+            }, 1000);
+        }
+
+        function toggleAutoSync() {
+            isSyncPaused = !isSyncPaused;
+            const btn = document.getElementById("toggleSyncBtn");
+            const progressCircle = document.getElementById("timerProgress");
+
+            if (isSyncPaused) {
+                btn.innerText = "Resume Sync";
+                btn.classList.add("paused");
+                progressCircle.style.stroke = "#ffd700";
+            } else {
+                btn.innerText = "Pause Sync";
+                btn.classList.remove("paused");
+                progressCircle.style.stroke = "#66fcf1";
+            }
+        }
+
         async function searchAndAddStock() {
             const input = document.getElementById("symbolInput");
             const symbol = input.value.trim().toUpperCase();
@@ -225,7 +362,6 @@
 
             if (!symbol) return;
 
-            // Check if already present
             if (rawStockData.some(s => s.symbol === symbol)) {
                 msgEl.style.color = "#ffd700";
                 msgEl.innerText = `${symbol} is already on your watchlist.`;
@@ -447,8 +583,9 @@
             document.getElementById("chartModal").style.display = "none";
         }
 
+        // Initialize dashboard and timer
         refreshDashboard();
-        setInterval(refreshDashboard, 30000);
+        startTimer();
     </script>
 </body>
 </html>
