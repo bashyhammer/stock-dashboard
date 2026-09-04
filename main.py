@@ -1,10 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import yfinance as yf
-import math
+import yfinance as tk
+from pydantic import BaseModel
 
 app = FastAPI()
 
+# Enable CORS for frontend access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -13,112 +14,144 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-WATCHLIST = {
-    "Energy": ["RIG", "KOS", "BORR"],
-    "Technology": ["SOFI", "BBAI", "PLTR"],
-    "EV & Auto": ["NIO", "RIVN", "LCID"],
-    "Consumer": ["GRPN", "SNDL"]
+# -------------------------------------------------------------------
+# PAPER TRADING IN-MEMORY STATE (Virtual Portfolio)
+# -------------------------------------------------------------------
+portfolio = {
+    "cash": 10000.00,       # Starting virtual cash
+    "holdings": {},         # Format: {"AAPL": {"shares": 10, "avg_price": 150.00}}
+    "trade_history": []     # Log of past transactions
 }
 
-def format_number(num):
-    """Helper function to format large numbers (e.g., 1.5B, 450M)"""
-    if not num or math.isnan(num):
-        return "N/A"
-    if num >= 1e9:
-        return f"${num / 1e9:.2f}B"
-    if num >= 1e6:
-        return f"${num / 1e6:.2f}M"
-    return f"${num:,.0f}"
+class TradeRequest(BaseModel):
+    ticker: str
+    shares: int
 
-def fetch_single_stock(symbol: str, sector: str = "Custom Search"):
-    """Helper function to process a single stock symbol"""
-    stock = yf.Ticker(symbol.upper())
-    history = stock.history(period="2d")
-    
-    if history.empty or len(history) < 2:
-        return None
+# -------------------------------------------------------------------
+# EXISTING STOCK DATA ENDPOINTS
+# -------------------------------------------------------------------
 
-    prev_close = history['Close'].iloc[-2]
-    curr_price = history['Close'].iloc[-1]
-    
-    if math.isnan(curr_price) or math.isnan(prev_close):
-        return None
+DEFAULT_TICKERS = ["RIG", "KOS", "BORR", "SOFI", "BBAI", "PLTR", "NIO", "RIVN", "LCID", "GRPN", "SNDL"]
 
-    pct_change = ((curr_price - prev_close) / prev_close) * 100
-    if math.isnan(pct_change):
-        pct_change = 0.0
+@app.get("/stocks")
+def get_stocks(tickers: str = None):
+    ticker_list = tickers.split(",") if tickers else DEFAULT_TICKERS
+    data = []
 
-    curr_price_float = float(curr_price)
-    target_hit = 5.00 <= curr_price_float <= 10.00
-    
-    volume = history['Volume'].iloc[-1] if 'Volume' in history else 0
-    market_cap = stock.info.get('marketCap', None)
-    
-    # Try to grab official sector name if available
-    info_sector = stock.info.get('sector', sector)
+    for symbol in ticker_list:
+        try:
+            stock = tk.Ticker(symbol)
+            info = stock.info
+            
+            price = info.get("currentPrice") or info.get("regularMarketPrice") or 0.0
+            prev_close = info.get("previousClose") or info.get("regularMarketPreviousClose") or price
+            change = ((price - prev_close) / prev_close * 100) if prev_close else 0.0
+            
+            data.append({
+                "symbol": symbol,
+                "sector": info.get("sector", "Unknown"),
+                "price": round(price, 2),
+                "change": round(change, 2),
+                "target_hit": 5.0 <= price <= 10.0,
+                "volume": info.get("volume", "N/A"),
+                "market_cap": info.get("marketCap", "N/A")
+            })
+        except Exception:
+            continue
+            
+    return data
 
-    return {
-        "symbol": symbol.upper(),
-        "sector": info_sector,
-        "price": round(curr_price_float, 2),
-        "change": round(float(pct_change), 2),
-        "under_limit": bool(curr_price_float <= 10.00),
-        "target_hit": bool(target_hit),
-        "volume": f"{int(volume):,}" if volume and not math.isnan(volume) else "N/A",
-        "market_cap": format_number(market_cap)
-    }
-
-@app.get("/")
-def home():
-    return {"message": "Stock Tracker API is active. Go to /api/stocks"}
-
-@app.get("/api/stocks")
-def get_stock_data():
-    results = []
-    for sector, tickers in WATCHLIST.items():
-        for symbol in tickers:
-            try:
-                data = fetch_single_stock(symbol, sector)
-                if data:
-                    results.append(data)
-            except Exception as e:
-                print(f"Error fetching {symbol}: {e}")
-                continue
-    return {"status": "success", "data": results}
-
-@app.get("/api/stock/{symbol}")
-def get_single_stock(symbol: str):
-    """Endpoint for on-demand stock search"""
+@app.get("/history/{symbol}")
+def get_history(symbol: str):
     try:
-        data = fetch_single_stock(symbol)
-        if not data:
-            return {"status": "error", "message": f"Symbol '{symbol}' not found or insufficient data."}
-        return {"status": "success", "data": data}
+        stock = tk.Ticker(symbol)
+        hist = stock.history(period="1m")
+        history_data = [
+            {"date": str(index.date()), "close": round(row["Close"], 2)}
+            for index, row in hist.iterrows()
+        ]
+        return {"symbol": symbol, "history": history_data}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/history/{symbol}")
-def get_stock_history(symbol: str):
-    """Endpoint to fetch 30-day price history for modal trend chart"""
-    try:
-        stock = yf.Ticker(symbol.upper())
-        history = stock.history(period="1mo")
+# -------------------------------------------------------------------
+# NEW: PAPER TRADING ENDPOINTS
+# -------------------------------------------------------------------
+
+@app.get("/portfolio")
+def get_portfolio():
+    """ Returns current virtual cash balance, active holdings, and trade history. """
+    return portfolio
+
+@app.post("/buy")
+def buy_stock(trade: TradeRequest):
+    """ Simulated buying logic. """
+    symbol = trade.ticker.upper()
+    shares = trade.shares
+    
+    if shares <= 0:
+        raise HTTPException(status_code=400, detail="Shares must be greater than 0")
         
-        if history.empty:
-            return {"status": "error", "message": "No history found"}
+    stock = tk.Ticker(symbol)
+    price = stock.info.get("currentPrice") or stock.info.get("regularMarketPrice")
+    
+    if not price:
+        raise HTTPException(status_code=400, detail=f"Could not fetch live price for {symbol}")
+        
+    total_cost = price * shares
+    
+    if portfolio["cash"] < total_cost:
+        raise HTTPException(status_code=400, detail=f"Insufficient virtual cash! Need ${total_cost:.2f}, have ${portfolio['cash']:.2f}")
+        
+    # Deduct cash
+    portfolio["cash"] -= total_cost
+    
+    # Update holdings
+    if symbol in portfolio["holdings"]:
+        existing = portfolio["holdings"][symbol]
+        total_shares = existing["shares"] + shares
+        # Weighted average buy price
+        new_avg = ((existing["shares"] * existing["avg_price"]) + total_cost) / total_shares
+        portfolio["holdings"][symbol] = {"shares": total_shares, "avg_price": round(new_avg, 2)}
+    else:
+        portfolio["holdings"][symbol] = {"shares": shares, "avg_price": round(price, 2)}
+        
+    # Log trade
+    trade_log = {"type": "BUY", "symbol": symbol, "shares": shares, "price": round(price, 2), "total": round(total_cost, 2)}
+    portfolio["trade_history"].append(trade_log)
+    
+    return {"message": f"Successfully bought {shares} shares of {symbol} at ${price:.2f}", "portfolio": portfolio}
 
-        dates = history.index.strftime('%Y-%m-%d').tolist()
-        prices = [round(p, 2) for p in history['Close'].tolist()]
-
-        return {
-            "status": "success",
-            "symbol": symbol.upper(),
-            "dates": dates,
-            "prices": prices
-        }
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8501, reload=True)
+@app.post("/sell")
+def sell_stock(trade: TradeRequest):
+    """ Simulated selling logic. """
+    symbol = trade.ticker.upper()
+    shares = trade.shares
+    
+    if shares <= 0:
+        raise HTTPException(status_code=400, detail="Shares must be greater than 0")
+        
+    if symbol not in portfolio["holdings"] or portfolio["holdings"][symbol]["shares"] < shares:
+        raise HTTPException(status_code=400, detail=f"Not enough shares of {symbol} to sell.")
+        
+    stock = tk.Ticker(symbol)
+    price = stock.info.get("currentPrice") or stock.info.get("regularMarketPrice")
+    
+    if not price:
+        raise HTTPException(status_code=400, detail=f"Could not fetch live price for {symbol}")
+        
+    total_revenue = price * shares
+    
+    # Add cash
+    portfolio["cash"] += total_revenue
+    
+    # Update holdings
+    portfolio["holdings"][symbol]["shares"] -= shares
+    if portfolio["holdings"][symbol]["shares"] == 0:
+        del portfolio["holdings"][symbol]
+        
+    # Log trade
+    trade_log = {"type": "SELL", "symbol": symbol, "shares": shares, "price": round(price, 2), "total": round(total_revenue, 2)}
+    portfolio["trade_history"].append(trade_log)
+    
+    return {"message": f"Successfully sold {shares} shares of {symbol} at ${price:.2f}", "portfolio": portfolio}
