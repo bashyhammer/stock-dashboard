@@ -182,14 +182,25 @@
         }
 
         function updateDashboardUI(stocks) {
-            // 1. Prepare Plotly Sunburst Data
+            // 1. Prepare Hierarchical Multi-Tier Sunburst Data
             const labels = ["Portfolio"];
             const parents = [""];
-            const values = [null]; // Passing null lets Plotly sum values internally
+            const values = [null]; 
 
+            // Extract unique sectors
+            const uniqueSectors = [...new Set(stocks.map(s => s.sector))];
+            
+            // Add Sector Nodes (Level 1)
+            uniqueSectors.forEach(sector => {
+                labels.push(sector);
+                parents.push("Portfolio");
+                values.push(null); // Plotly sums children automatically
+            });
+
+            // Add Ticker Nodes (Level 2)
             stocks.forEach(stock => {
                 labels.push(stock.symbol);
-                parents.push("Portfolio");
+                parents.push(stock.sector); // Parent is the Sector!
                 values.push(stock.price);
             });
 
@@ -198,7 +209,7 @@
                 labels: labels,
                 parents: parents,
                 values: values,
-                outsidetextfont: { size: 14, color: "#ffffff" },
+                outsidetextfont: { size: 12, color: "#ffffff" },
                 leaf: { opacity: 0.8 },
                 marker: { line: { width: 2, color: "#0b0c10" } }
             }];
@@ -212,7 +223,7 @@
 
             Plotly.newPlot('sunburstChart', sunburstData, layout, { responsive: true, displayModeBar: false });
 
-            // 2. Render Ticker List Cards with Alerts
+            // 2. Render Ticker List Cards grouped by Sector
             const tickerContainer = document.getElementById("ticker-list");
             if (tickerContainer) {
                 tickerContainer.innerHTML = stocks.map(stock => {
@@ -220,7 +231,6 @@
                     const changeColor = isPositive ? '#66fcf1' : '#ff4d4d';
                     const changeSign = isPositive ? '+' : '';
 
-                    // Check backend target_hit flag
                     const alertClass = stock.target_hit ? 'target-alert' : '';
                     const badgeHtml = stock.target_hit ? '<span class="badge">TARGET $5-$10</span>' : '';
 
@@ -228,6 +238,7 @@
                         <div class="ticker-row ${alertClass}">
                             <div>
                                 <span class="ticker-symbol">${stock.symbol}</span>
+                                <small style="color: #888; font-size: 0.75rem; margin-left: 4px;">(${stock.sector})</small>
                                 ${badgeHtml}
                             </div>
                             <span class="ticker-price" style="color: ${changeColor};">
