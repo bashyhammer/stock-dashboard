@@ -229,22 +229,25 @@
                 return;
             }
 
-            // Construct Multi-Layer Sunburst Arrays
-            const labels = ["Portfolio"];
-            const parents = [""];
-            const values = [null]; 
+            // 1. Build Unique IDs, Labels, and Parent Mapping
+            const ids = [];
+            const labels = [];
+            const parents = [];
+            const values = [];
 
+            // Add Sectors (Inner Ring)
             const uniqueSectors = [...new Set(stocks.map(s => s.sector))];
             
-            // Level 1: Sector Nodes
             uniqueSectors.forEach(sector => {
+                ids.push(sector);
                 labels.push(sector);
-                parents.push("Portfolio");
-                values.push(null);
+                parents.push(""); // No root node needed; Sectors are the innermost ring
+                values.push(0);  // Dynamically calculated from child stock prices
             });
 
-            // Level 2: Ticker Nodes
+            // Add Stocks (Outer Ring)
             stocks.forEach(stock => {
+                ids.push(`${stock.sector}-${stock.symbol}`);
                 labels.push(stock.symbol);
                 parents.push(stock.sector);
                 values.push(stock.price);
@@ -252,10 +255,11 @@
 
             const sunburstData = [{
                 type: "sunburst",
+                ids: ids,
                 labels: labels,
                 parents: parents,
                 values: values,
-                branchvalues: "remainder",
+                branchvalues: "total", // Automatically sums child stock values into parent sectors
                 outsidetextfont: { size: 12, color: "#ffffff" },
                 leaf: { opacity: 0.8 },
                 marker: { line: { width: 2, color: "#0b0c10" } }
@@ -270,7 +274,7 @@
 
             Plotly.newPlot('sunburstChart', sunburstData, layout, { responsive: true, displayModeBar: false });
 
-            // Render Ticker Cards inside right panel
+            // 2. Render Ticker List Panel
             tickerContainer.innerHTML = stocks.map(stock => {
                 const isPositive = stock.change >= 0;
                 const changeColor = isPositive ? '#66fcf1' : '#ff4d4d';
