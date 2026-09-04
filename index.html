@@ -5,14 +5,64 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Low-Cost Stock Dashboard</title>
 
-    <!-- Include CSS File -->
     <link rel="stylesheet" href="style.css">
-
-    <!-- Include Plotly.js -->
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 
     <style>
-        /* Modal Popup Styles */
+        /* Search Bar & Toolbar Styling */
+        .search-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .search-input {
+            background-color: #1f2833;
+            border: 1px solid #45a29e;
+            color: #ffffff;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            outline: none;
+            width: 260px;
+            transition: border-color 0.2s;
+        }
+
+        .search-input:focus {
+            border-color: #66fcf1;
+            box-shadow: 0 0 8px rgba(102, 252, 241, 0.3);
+        }
+
+        .btn-add {
+            background-color: #45a29e;
+            color: #0b0c10;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        .btn-add:hover {
+            background-color: #66fcf1;
+        }
+
+        .btn-add:active {
+            transform: scale(0.97);
+        }
+
+        .search-message {
+            font-size: 0.85rem;
+            margin-top: -12px;
+            margin-bottom: 15px;
+            text-align: center;
+            height: 18px;
+        }
+
+        /* Modal Overlay Styles */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -44,7 +94,6 @@
             font-size: 1.5rem;
             color: #888;
             cursor: pointer;
-            transition: color 0.2s;
         }
 
         .close-btn:hover {
@@ -85,6 +134,13 @@
             </div>
         </div>
 
+        <!-- Custom Search Bar -->
+        <div class="search-container">
+            <input type="text" id="symbolInput" class="search-input" placeholder="Enter Ticker (e.g., TSLA, AAPL, F)" onkeypress="handleKeyPress(event)">
+            <button class="btn-add" onclick="searchAndAddStock()">+ Add Ticker</button>
+        </div>
+        <div id="searchMsg" class="search-message"></div>
+
         <div class="content-grid">
             <!-- Left Column: Heatmap Sunburst Chart -->
             <div class="card">
@@ -104,7 +160,7 @@
                     </label>
                 </div>
                 <div id="ticker-list" class="ticker-list">
-                    <p style="text-align: center; color: #888;">Connecting to local engine...</p>
+                    <p style="text-align: center; color: #888;">Connecting to backend engine...</p>
                 </div>
             </div>
         </div>
@@ -124,27 +180,86 @@
     </div>
 
     <script>
-        // Replace these two lines with your new Render URL:
-       const API_URL = "https://my-stock-tracker-api.onrender.com/api/stocks";
-       const HISTORY_API_URL = "https://my-stock-tracker-api.onrender.com/api/history/";
+        // Update this base URL with your live Render backend URL:
+        const BASE_API_URL = "https://my-stock-tracker-api.onrender.com"; 
+        
         let rawStockData = [];
+        let customSymbols = [];
 
         async function refreshDashboard() {
             try {
-                const response = await fetch(API_URL);
+                const response = await fetch(`${BASE_API_URL}/api/stocks`);
                 const result = await response.json();
                 
                 if (result.status === "success" && result.data) {
-                    rawStockData = result.data;
+                    // Combine default watchlist data with any added custom stocks
+                    let combinedData = [...result.data];
+
+                    // Fetch updates for custom tickers
+                    for (const sym of customSymbols) {
+                        if (!combinedData.some(s => s.symbol === sym)) {
+                            const customRes = await fetch(`${BASE_API_URL}/api/stock/${sym}`);
+                            const customResult = await customRes.json();
+                            if (customResult.status === "success") {
+                                combinedData.push(customResult.data);
+                            }
+                        }
+                    }
+
+                    rawStockData = combinedData;
                     applyFiltersAndRender();
                     document.getElementById("last-updated").innerText = `Status: Live | Last synced: ${new Date().toLocaleTimeString()}`;
                     document.getElementById("last-updated").style.color = "#45a29e";
                 }
             } catch (error) {
-                console.error("Error connecting to FastAPI backend:", error);
-                document.getElementById("last-updated").innerText = "Status: Backend Disconnected (Ensure main.py is running on port 8501)";
+                console.error("Error connecting to backend:", error);
+                document.getElementById("last-updated").innerText = "Status: Backend Disconnected";
                 document.getElementById("last-updated").style.color = "#ff4d4d";
             }
+        }
+
+        async function searchAndAddStock() {
+            const input = document.getElementById("symbolInput");
+            const symbol = input.value.trim().toUpperCase();
+            const msgEl = document.getElementById("searchMsg");
+
+            if (!symbol) return;
+
+            // Check if already present
+            if (rawStockData.some(s => s.symbol === symbol)) {
+                msgEl.style.color = "#ffd700";
+                msgEl.innerText = `${symbol} is already on your watchlist.`;
+                return;
+            }
+
+            msgEl.style.color = "#66fcf1";
+            msgEl.innerText = `Searching market for ${symbol}...`;
+
+            try {
+                const response = await fetch(`${BASE_API_URL}/api/stock/${symbol}`);
+                const result = await response.json();
+
+                if (result.status === "success" && result.data) {
+                    rawStockData.push(result.data);
+                    if (!customSymbols.includes(symbol)) customSymbols.push(symbol);
+
+                    applyFiltersAndRender();
+                    input.value = "";
+                    msgEl.style.color = "#00c853";
+                    msgEl.innerText = `Successfully added ${symbol}!`;
+                    setTimeout(() => { msgEl.innerText = ""; }, 3000);
+                } else {
+                    msgEl.style.color = "#ff4d4d";
+                    msgEl.innerText = result.message || "Symbol not found.";
+                }
+            } catch (err) {
+                msgEl.style.color = "#ff4d4d";
+                msgEl.innerText = "Error fetching stock data.";
+            }
+        }
+
+        function handleKeyPress(e) {
+            if (e.key === "Enter") searchAndAddStock();
         }
 
         function handleFilterToggle() {
@@ -195,7 +310,7 @@
             const tickerContainer = document.getElementById("ticker-list");
 
             if (!stocks || stocks.length === 0) {
-                tickerContainer.innerHTML = '<p style="text-align: center; color: #888; padding: 20px;">No stocks match the target criteria.</p>';
+                tickerContainer.innerHTML = '<p style="text-align: center; color: #888; padding: 20px;">No stocks match criteria.</p>';
                 Plotly.purge('sunburstChart');
                 return;
             }
@@ -257,7 +372,6 @@
 
             Plotly.newPlot('sunburstChart', sunburstData, layout, { responsive: true, displayModeBar: false });
 
-            // Render Ticker Cards with Click-to-Expand functionality
             tickerContainer.innerHTML = stocks.map(stock => {
                 const isPositive = stock.change >= 0;
                 const changeColor = isPositive ? '#66fcf1' : '#ff4d4d';
@@ -277,7 +391,6 @@
                             $${stock.price.toFixed(2)} (${changeSign}${stock.change}%)
                         </span>
 
-                        <!-- Hover Card -->
                         <div class="stock-hover-card">
                             <h4>${stock.symbol} Overview</h4>
                             <p><strong>Sector:</strong> ${stock.sector}</p>
@@ -301,7 +414,7 @@
             Plotly.purge('historyChart');
 
             try {
-                const response = await fetch(`${HISTORY_API_URL}${symbol}`);
+                const response = await fetch(`${BASE_API_URL}/api/history/${symbol}`);
                 const data = await response.json();
 
                 if (data.status === "success") {
