@@ -148,11 +148,13 @@
             </div>
 
             <!-- Right Column: Ticker List -->
-            <div class="card">
-                <h2>Watched Tickers</h2>
-                <div id="ticker-list" class="ticker-list">
-                    <p style="text-align: center; color: #888;">Connecting to local engine...</p>
-                </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #45a29e; padding-bottom: 8px;">
+    <h2 style="border: none; margin: 0; padding: 0;">Watched Tickers</h2>
+    <label style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #66fcf1; cursor: pointer;">
+        <input type="checkbox" id="targetFilterToggle" onchange="handleFilterToggle()" style="cursor: pointer; accent-color: #ffd700;">
+        Target ($5–$10) Only
+    </label>
+</div>
             </div>
         </div>
 
