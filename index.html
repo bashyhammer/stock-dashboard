@@ -89,5 +89,37 @@
 
         Plotly.newPlot('sunburstChart', data, layout, {responsive: true});
     </script>
+    <!-- Add this JavaScript block right before </body> -->
+    <script>
+        // Points to your local FastAPI server on port 8080
+        const API_URL = "http://127.0.0.1:8080/api/stocks";
+
+        async function loadLivePrices() {
+            try {
+                const response = await fetch(API_URL);
+                const result = await response.json();
+                
+                console.log("Live Stock Data Received:", result.data);
+
+                // Example: Loop through results and update price elements if they exist
+                result.data.forEach(stock => {
+                    const priceElement = document.getElementById(`${stock.symbol.toLowerCase()}-price`);
+                    if (priceElement) {
+                        priceElement.innerText = `$${stock.price.toFixed(2)}`;
+                    }
+                });
+
+            } catch (error) {
+                console.error("Could not connect to FastAPI server. Is main.py running?", error);
+            }
+        }
+
+        // Fetch prices immediately when page loads
+        loadLivePrices();
+
+        // Refresh automatically every 30 seconds
+        setInterval(loadLivePrices, 30000);
+    </script>
 </body>
 </html>
+
