@@ -10,6 +10,52 @@
 
     <!-- Include Plotly.js -->
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+
+    <style>
+        /* Modal Popup Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: #1f2833;
+            border-radius: 12px;
+            padding: 24px;
+            width: 90%;
+            max-width: 650px;
+            border: 1px solid #66fcf1;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.7);
+            position: relative;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 1.5rem;
+            color: #888;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .close-btn:hover {
+            color: #ff4d4d;
+        }
+
+        #historyChart {
+            width: 100%;
+            height: 350px;
+        }
+    </style>
 </head>
 <body>
 
@@ -68,8 +114,18 @@
         </div>
     </div>
 
+    <!-- Historical Chart Modal Popup -->
+    <div id="chartModal" class="modal-overlay" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <h2 id="modalTitle" style="color: #66fcf1; margin-bottom: 15px;">30-Day Trend</h2>
+            <div id="historyChart"></div>
+        </div>
+    </div>
+
     <script>
         const API_URL = "http://127.0.0.1:8501/api/stocks";
+        const HISTORY_API_URL = "http://127.0.0.1:8501/api/history/";
         let rawStockData = [];
 
         async function refreshDashboard() {
@@ -200,7 +256,7 @@
 
             Plotly.newPlot('sunburstChart', sunburstData, layout, { responsive: true, displayModeBar: false });
 
-            // Render Ticker Cards with Volume & Market Cap
+            // Render Ticker Cards with Click-to-Expand functionality
             tickerContainer.innerHTML = stocks.map(stock => {
                 const isPositive = stock.change >= 0;
                 const changeColor = isPositive ? '#66fcf1' : '#ff4d4d';
@@ -210,7 +266,7 @@
                 const badgeHtml = stock.target_hit ? '<span class="badge">TARGET $5-$10</span>' : '';
 
                 return `
-                    <div class="ticker-row ${alertClass}">
+                    <div class="ticker-row ${alertClass}" onclick="openHistoryModal('${stock.symbol}')">
                         <div>
                             <span class="ticker-symbol">${stock.symbol}</span>
                             <small style="color: #888; font-size: 0.75rem; margin-left: 4px;">(${stock.sector})</small>
@@ -220,7 +276,7 @@
                             $${stock.price.toFixed(2)} (${changeSign}${stock.change}%)
                         </span>
 
-                        <!-- Rich Details Hover Popup -->
+                        <!-- Hover Card -->
                         <div class="stock-hover-card">
                             <h4>${stock.symbol} Overview</h4>
                             <p><strong>Sector:</strong> ${stock.sector}</p>
@@ -229,10 +285,52 @@
                             <p><strong>Market Cap:</strong> ${stock.market_cap}</p>
                             <p><strong>Volume:</strong> ${stock.volume}</p>
                             <p><strong>Target Range:</strong> ${stock.target_hit ? 'YES ($5–$10)' : 'NO'}</p>
+                            <p style="color: #66fcf1; margin-top: 5px;"><em>Click row for 30-day chart</em></p>
                         </div>
                     </div>
                 `;
             }).join('');
+        }
+
+        async function openHistoryModal(symbol) {
+            const modal = document.getElementById("chartModal");
+            document.getElementById("modalTitle").innerText = `${symbol} - 30 Day Price Trend`;
+            modal.style.display = "flex";
+
+            Plotly.purge('historyChart');
+
+            try {
+                const response = await fetch(`${HISTORY_API_URL}${symbol}`);
+                const data = await response.json();
+
+                if (data.status === "success") {
+                    const lineTrace = {
+                        x: data.dates,
+                        y: data.prices,
+                        type: 'scatter',
+                        mode: 'lines+markers',
+                        line: { color: '#66fcf1', width: 3 },
+                        marker: { color: '#45a29e', size: 6 }
+                    };
+
+                    const layout = {
+                        margin: { l: 40, r: 20, b: 40, t: 20 },
+                        paper_bgcolor: "rgba(0,0,0,0)",
+                        plot_bgcolor: "rgba(0,0,0,0)",
+                        xaxis: { color: '#c5c6c7', showgrid: false },
+                        yaxis: { color: '#c5c6c7', gridcolor: '#1f2833', tickprefix: '$' },
+                        font: { color: "#c5c6c7" }
+                    };
+
+                    Plotly.newPlot('historyChart', [lineTrace], layout, { responsive: true, displayModeBar: false });
+                }
+            } catch (err) {
+                console.error("Error loading history chart:", err);
+            }
+        }
+
+        function closeModal(event) {
+            document.getElementById("chartModal").style.display = "none";
         }
 
         refreshDashboard();
