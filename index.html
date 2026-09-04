@@ -49,6 +49,49 @@
             font-size: 0.9rem;
         }
 
+        /* KPI Summary Bar Styling */
+        .kpi-bar {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .kpi-bar {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .kpi-card {
+            background-color: #1f2833;
+            padding: 15px;
+            border-radius: 8px;
+            border-top: 3px solid #45a29e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        .kpi-card h3 {
+            font-size: 0.75rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .kpi-value {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: #ffffff;
+        }
+
+        .kpi-card.target { border-top-color: #ffd700; }
+        .kpi-card.gainer { border-top-color: #00c853; }
+        .kpi-card.loser { border-top-color: #d32f2f; }
+
         .content-grid {
             display: grid;
             grid-template-columns: 1fr 340px;
@@ -155,6 +198,26 @@
             <p>Real-Time Tracking Engine ($5–$10 Focus)</p>
         </header>
 
+        <!-- KPI Summary Strip (Item A) -->
+        <div class="kpi-bar">
+            <div class="kpi-card">
+                <h3>Total Tracked</h3>
+                <div class="kpi-value" id="kpi-total">--</div>
+            </div>
+            <div class="kpi-card target">
+                <h3>Target ($5–$10) Hits</h3>
+                <div class="kpi-value" id="kpi-targets" style="color: #ffd700;">--</div>
+            </div>
+            <div class="kpi-card gainer">
+                <h3>Top Gainer</h3>
+                <div class="kpi-value" id="kpi-gainer" style="color: #00c853;">--</div>
+            </div>
+            <div class="kpi-card loser">
+                <h3>Top Loser</h3>
+                <div class="kpi-value" id="kpi-loser" style="color: #d32f2f;">--</div>
+            </div>
+        </div>
+
         <div class="content-grid">
             <!-- Left Column: Heatmap Sunburst Chart -->
             <div class="card">
@@ -218,15 +281,36 @@
                 : rawStockData;
 
             updateDashboardUI(filteredStocks);
+            updateKPIs(rawStockData);
         }
 
-        // Helper function: Convert percentage performance into Green / Red / Neutral hex color
+        function updateKPIs(allStocks) {
+            if (!allStocks || allStocks.length === 0) return;
+
+            document.getElementById("kpi-total").innerText = allStocks.length;
+
+            const targetHits = allStocks.filter(s => s.target_hit).length;
+            document.getElementById("kpi-targets").innerText = targetHits;
+
+            const sortedByPerformance = [...allStocks].sort((a, b) => b.change - a.change);
+            const topGainer = sortedByPerformance[0];
+            const topLoser = sortedByPerformance[sortedByPerformance.length - 1];
+
+            if (topGainer) {
+                document.getElementById("kpi-gainer").innerText = `${topGainer.symbol} (+${topGainer.change}%)`;
+            }
+
+            if (topLoser) {
+                document.getElementById("kpi-loser").innerText = `${topLoser.symbol} (${topLoser.change}%)`;
+            }
+        }
+
         function getPerformanceColor(pctChange) {
-            if (pctChange > 3) return "#00c853";       // Strong Green
-            if (pctChange > 0) return "#4caf50";       // Moderate Green
-            if (pctChange === 0) return "#78909c";     // Neutral Gray
-            if (pctChange > -3) return "#e57373";      // Moderate Red
-            return "#d32f2f";                          // Strong Red
+            if (pctChange > 3) return "#00c853";
+            if (pctChange > 0) return "#4caf50";
+            if (pctChange === 0) return "#78909c";
+            if (pctChange > -3) return "#e57373";
+            return "#d32f2f";
         }
 
         function updateDashboardUI(stocks) {
@@ -238,7 +322,6 @@
                 return;
             }
 
-            // Calculate sector total prices & average percentage performance
             const sectorData = {};
             stocks.forEach(stock => {
                 if (!sectorData[stock.sector]) {
@@ -255,7 +338,6 @@
             const values = [];
             const colors = [];
 
-            // Level 1: Sector Nodes (Inner Ring - Color coded by Sector Avg Performance)
             Object.keys(sectorData).forEach(sector => {
                 const avgChange = sectorData[sector].totalChange / sectorData[sector].count;
                 ids.push(sector);
@@ -265,7 +347,6 @@
                 colors.push(getPerformanceColor(avgChange));
             });
 
-            // Level 2: Stock Nodes (Outer Ring - Color coded by Ticker Performance)
             stocks.forEach(stock => {
                 ids.push(`${stock.sector}-${stock.symbol}`);
                 labels.push(`${stock.symbol}<br>${stock.change >= 0 ? '+' : ''}${stock.change}%`);
@@ -298,7 +379,6 @@
 
             Plotly.newPlot('sunburstChart', sunburstData, layout, { responsive: true, displayModeBar: false });
 
-            // Render Ticker Cards inside right panel
             tickerContainer.innerHTML = stocks.map(stock => {
                 const isPositive = stock.change >= 0;
                 const changeColor = isPositive ? '#66fcf1' : '#ff4d4d';
