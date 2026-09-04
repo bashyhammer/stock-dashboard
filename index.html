@@ -4,11 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Low-Cost Stock Dashboard</title>
+
+    <!-- Include CSS File -->
     <link rel="stylesheet" href="style.css">
 
     <!-- Include Plotly.js -->
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
-   
 </head>
 <body>
 
@@ -199,7 +200,7 @@
 
             Plotly.newPlot('sunburstChart', sunburstData, layout, { responsive: true, displayModeBar: false });
 
-            // Render Ticker Cards with Hover Popups
+            // Render Ticker Cards with Volume & Market Cap
             tickerContainer.innerHTML = stocks.map(stock => {
                 const isPositive = stock.change >= 0;
                 const changeColor = isPositive ? '#66fcf1' : '#ff4d4d';
@@ -219,12 +220,14 @@
                             $${stock.price.toFixed(2)} (${changeSign}${stock.change}%)
                         </span>
 
-                        <!-- Hover Card Pop-up -->
+                        <!-- Rich Details Hover Popup -->
                         <div class="stock-hover-card">
-                            <h4>${stock.symbol} Details</h4>
+                            <h4>${stock.symbol} Overview</h4>
                             <p><strong>Sector:</strong> ${stock.sector}</p>
                             <p><strong>Price:</strong> $${stock.price.toFixed(2)}</p>
-                            <p><strong>Daily Change:</strong> ${changeSign}${stock.change}%</p>
+                            <p><strong>Change:</strong> ${changeSign}${stock.change}%</p>
+                            <p><strong>Market Cap:</strong> ${stock.market_cap}</p>
+                            <p><strong>Volume:</strong> ${stock.volume}</p>
                             <p><strong>Target Range:</strong> ${stock.target_hit ? 'YES ($5–$10)' : 'NO'}</p>
                         </div>
                     </div>
