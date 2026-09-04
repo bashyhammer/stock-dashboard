@@ -141,7 +141,9 @@
             gap: 12px;
         }
 
+        /* Ticker Row & Hover Card Styling */
         .ticker-row {
+            position: relative;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -150,12 +152,49 @@
             border-radius: 6px;
             border-left: 4px solid #45a29e;
             transition: all 0.3s ease;
+            cursor: pointer;
         }
 
         .ticker-row.target-alert {
             border-left: 4px solid #ffd700 !important;
             box-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
             background-color: #161b22;
+        }
+
+        /* Hidden hover popup card */
+        .stock-hover-card {
+            display: none;
+            position: absolute;
+            right: 105%;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 200px;
+            background-color: #0b0c10;
+            border: 1px solid #66fcf1;
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        .stock-hover-card h4 {
+            color: #66fcf1;
+            font-size: 0.9rem;
+            margin-bottom: 6px;
+            border-bottom: 1px solid #1f2833;
+            padding-bottom: 4px;
+        }
+
+        .stock-hover-card p {
+            font-size: 0.75rem;
+            color: #c5c6c7;
+            margin: 3px 0;
+        }
+
+        /* Show hover card on row hover */
+        .ticker-row:hover .stock-hover-card {
+            display: block;
         }
 
         .badge {
@@ -198,7 +237,7 @@
             <p>Real-Time Tracking Engine ($5–$10 Focus)</p>
         </header>
 
-        <!-- KPI Summary Strip (Item A) -->
+        <!-- KPI Summary Strip -->
         <div class="kpi-bar">
             <div class="kpi-card">
                 <h3>Total Tracked</h3>
@@ -379,6 +418,7 @@
 
             Plotly.newPlot('sunburstChart', sunburstData, layout, { responsive: true, displayModeBar: false });
 
+            // Render Ticker Cards with Hover Popups
             tickerContainer.innerHTML = stocks.map(stock => {
                 const isPositive = stock.change >= 0;
                 const changeColor = isPositive ? '#66fcf1' : '#ff4d4d';
@@ -397,6 +437,15 @@
                         <span class="ticker-price" style="color: ${changeColor};">
                             $${stock.price.toFixed(2)} (${changeSign}${stock.change}%)
                         </span>
+
+                        <!-- Hover Card Pop-up -->
+                        <div class="stock-hover-card">
+                            <h4>${stock.symbol} Details</h4>
+                            <p><strong>Sector:</strong> ${stock.sector}</p>
+                            <p><strong>Price:</strong> $${stock.price.toFixed(2)}</p>
+                            <p><strong>Daily Change:</strong> ${changeSign}${stock.change}%</p>
+                            <p><strong>Target Range:</strong> ${stock.target_hit ? 'YES ($5–$10)' : 'NO'}</p>
+                        </div>
                     </div>
                 `;
             }).join('');
