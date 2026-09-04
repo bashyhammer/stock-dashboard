@@ -2,94 +2,154 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Financial Statistics & Stock Dashboard</title>
-    <!-- Load Plotly.js for dark-theme interactive sunburst visual -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Low-Cost Stock Dashboard</title>
+
+    <!-- Include Plotly.js for the visual chart -->
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+
     <style>
+        /* Modern Dark Mode Styling */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
         body {
             background-color: #0b0c10;
-            color: #ffffff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
+            color: #c5c6c7;
             padding: 20px;
+            display: flex;
+            justify-content: center;
         }
+
         .dashboard-container {
-            display: grid;
-            grid-template-columns: 280px 1fr 280px;
+            width: 100%;
+            max-width: 1000px;
+            display: flex;
+            flex-direction: column;
             gap: 20px;
-            height: 90vh;
         }
+
+        header {
+            text-align: center;
+            border-bottom: 2px solid #1f2833;
+            padding-bottom: 15px;
+        }
+
+        header h1 {
+            color: #66fcf1;
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+
+        header p {
+            color: #45a29e;
+            font-size: 0.9rem;
+        }
+
+        /* Layout Grid for Main Content */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
         .card {
-            background: #1f2833;
-            border-radius: 12px;
+            background-color: #1f2833;
+            border-radius: 10px;
             padding: 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
         }
-        .kpi-title { color: #8892b0; font-size: 0.85em; text-transform: uppercase; }
-        .kpi-value { font-size: 2em; font-weight: bold; margin: 10px 0; color: #66fcf1; }
+
+        .card h2 {
+            color: #66fcf1;
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #45a29e;
+            padding-bottom: 8px;
+        }
+
+        /* Ticker Rows Styling */
+        .ticker-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
         .ticker-row {
-            display: flex; justify-content: space-between;
-            padding: 10px 0; border-bottom: 1px solid #45a29e;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background-color: #0b0c10;
+            border-radius: 6px;
+            border-left: 4px solid #45a29e;
+        }
+
+        .ticker-symbol {
+            font-weight: bold;
+            color: #ffffff;
+        }
+
+        .ticker-price {
+            font-weight: 600;
+        }
+
+        /* Chart Area */
+        #sunburstChart {
+            width: 100%;
+            height: 400px;
+        }
+
+        /* Status Bar */
+        .status-bar {
+            text-align: right;
+            font-size: 0.8rem;
+            color: #45a29e;
         }
     </style>
 </head>
 <body>
 
     <div class="dashboard-container">
-        <!-- Left Column: Key Performance Indicators -->
-        <div class="card">
-            <h3>Portfolio Stats</h3>
-            <div style="margin-bottom: 25px;">
-                <div class="kpi-title">Total Portfolio</div>
-                <div class="kpi-value">$1,000.00</div>
+        <header>
+            <h1>Low-Cost Stock Tracker</h1>
+            <p>Real-Time Tracking Engine ($5–$10 Focus)</p>
+        </header>
+
+        <div class="content-grid">
+            <!-- Left Column: Sunburst Visualizer -->
+            <div class="card">
+                <h2>Portfolio Allocation</h2>
+                <div id="sunburstChart"></div>
             </div>
-            <div style="margin-bottom: 25px;">
-                <div class="kpi-title">Active Cash</div>
-                <div class="kpi-value">$100.00</div>
-            </div>
-            <div>
-                <div class="kpi-title">Target Goal</div>
-                <div class="kpi-value" style="color: #45a29e;">86%</div>
+
+            <!-- Right Column: Live Price Feed -->
+            <div class="card">
+                <h2>Watched Tickers</h2>
+                <div id="ticker-list" class="ticker-list">
+                    <p style="text-align: center; color: #888;">Connecting to local engine...</p>
+                </div>
             </div>
         </div>
 
-        <!-- Center Column: Sunburst Radial Chart -->
-        <div class="card" id="sunburstChart"></div>
-
-        <!-- Right Column: Live Low-Cost Tickers -->
-        <div class="card">
-            <h3>Low-Cost Holdings</h3>
-            <div class="ticker-row"><span>RIG</span> <span>$6.02</span></div>
-            <div class="ticker-row"><span>LCID</span> <span>$4.60</span></div>
-            <div class="ticker-row"><span>SNDL</span> <span>$1.41</span></div>
+        <div class="status-bar" id="last-updated">
+            Status: Initializing connection...
         </div>
     </div>
 
+    <!-- Frontend Engine Script -->
     <script>
-        // Data structure mapping Portfolio -> Sectors -> Individual Tickers
-        var data = [{
-            type: "sunburst",
-            labels: ["Portfolio", "Energy", "EVs", "Retail", "RIG", "LCID", "SNDL"],
-            parents: ["", "Portfolio", "Portfolio", "Portfolio", "Energy", "EVs", "Retail"],
-            values:  [1000, 333, 333, 334, 333, 333, 334],
-            outsidetextfont: {size: 14, color: "#ffffff"},
-            leaf: {opacity: 0.8},
-            marker: {
-                line: {width: 2, color: "#0b0c10"},
-                colors: ["#1f2833", "#45a29e", "#66fcf1", "#c5c6c7", "#45a29e", "#66fcf1", "#c5c6c7"]
-            }
-        }];
-
-        var layout = {
-            margin: {l: 0, r: 0, b: 0, t: 0},
-            paper_bgcolor: "rgba(0,0,0,0)",
-            plot_bgcolor: "rgba(0,0,0,0)",
-            sunburstcolorway:["#66fcf1", "#45a29e"]
-        };
-
-        Plotly.newPlot('sunburstChart', data, layout, {responsive: true});
-    <!-- REPLACE YOUR BOTTOM <script> BLOCK WITH THIS: -->
-    <script>
+        // Points to your local FastAPI server endpoint
         const API_URL = "http://127.0.0.1:8501/api/stocks";
 
         async function refreshDashboard() {
@@ -97,25 +157,28 @@
                 const response = await fetch(API_URL);
                 const result = await response.json();
                 
-                if (result.status === "success") {
+                if (result.status === "success" && result.data) {
                     updateDashboardUI(result.data);
+                    document.getElementById("last-updated").innerText = `Status: Live | Last synced: ${new Date().toLocaleTimeString()}`;
                 }
             } catch (error) {
                 console.error("Error connecting to FastAPI backend:", error);
+                document.getElementById("last-updated").innerText = "Status: Backend Disconnected (Ensure main.py is running on port 8501)";
+                document.getElementById("last-updated").style.color = "#ff4d4d";
             }
         }
 
         function updateDashboardUI(stocks) {
-            // 1. Build Sunburst Chart arrays dynamically
+            // 1. Prepare Plotly Sunburst Data
             const labels = ["Portfolio"];
             const parents = [""];
-            const values = [0]; // Dynamic sum
+            const values = [0]; 
 
             stocks.forEach(stock => {
                 labels.push(stock.symbol);
                 parents.push("Portfolio");
                 values.push(stock.price);
-                values[0] += stock.price; // Accumulate total
+                values[0] += stock.price; 
             });
 
             const sunburstData = [{
@@ -124,38 +187,44 @@
                 parents: parents,
                 values: values,
                 outsidetextfont: { size: 14, color: "#ffffff" },
+                leaf: { opacity: 0.8 },
                 marker: { line: { width: 2, color: "#0b0c10" } }
             }];
 
             const layout = {
                 margin: { l: 0, r: 0, b: 0, t: 0 },
                 paper_bgcolor: "rgba(0,0,0,0)",
-                plot_bgcolor: "rgba(0,0,0,0)"
+                plot_bgcolor: "rgba(0,0,0,0)",
+                font: { color: "#c5c6c7" }
             };
 
-            // Renders to the <div id="sunburstChart"></div> container
-            Plotly.newPlot('sunburstChart', sunburstData, layout, { responsive: true });
+            Plotly.newPlot('sunburstChart', sunburstData, layout, { responsive: true, displayModeBar: false });
 
             // 2. Render Ticker Cards
             const tickerContainer = document.getElementById("ticker-list");
             if (tickerContainer) {
-                tickerContainer.innerHTML = stocks.map(stock => `
-                    <div class="ticker-row" style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span><b>${stock.symbol}</b></span>
-                        <span style="color: ${stock.change >= 0 ? '#66fcf1' : '#ff4d4d'};">
-                            $${stock.price.toFixed(2)} (${stock.change > 0 ? '+' : ''}${stock.change}%)
-                        </span>
-                    </div>
-                `).join('');
+                tickerContainer.innerHTML = stocks.map(stock => {
+                    const isPositive = stock.change >= 0;
+                    const changeColor = isPositive ? '#66fcf1' : '#ff4d4d';
+                    const changeSign = isPositive ? '+' : '';
+
+                    return `
+                        <div class="ticker-row">
+                            <span class="ticker-symbol">${stock.symbol}</span>
+                            <span class="ticker-price" style="color: ${changeColor};">
+                                $${stock.price.toFixed(2)} (${changeSign}${stock.change}%)
+                            </span>
+                        </div>
+                    `;
+                }).join('');
             }
         }
 
-        // Fetch prices immediately, then poll every 30 seconds
+        // Fetch prices immediately upon launch
         refreshDashboard();
+
+        // Automatically pull fresh data every 30 seconds
         setInterval(refreshDashboard, 30000);
     </script>
 </body>
 </html>
-</body>
-</html>
-
