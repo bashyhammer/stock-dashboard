@@ -388,23 +388,31 @@
         return;
     }
 
-    const headers = ["Symbol", "Sector", "Price ($)", "Change (%)", "Target Hit ($5-$10)", "Volume", "Market Cap"];
+    const headers = ["Symbol", "Sector", "Price", "Change Percent", "Target Hit", "Volume", "Market Cap"];
     
+    // Clean string values (remove commas inside numbers/strings to prevent Calc separator confusion)
     const csvRows = [
         headers.join(","),
-        ...currentlyDisplayedStocks.map(s => [
-            `"${s.symbol}"`,
-            `"${s.sector}"`,
-            s.price.toFixed(2),
-            s.change.toFixed(2),
-            s.target_hit ? "YES" : "NO",
-            `"${s.volume}"`,
-            `"${s.market_cap}"`
-        ].join(","))
+        ...currentlyDisplayedStocks.map(s => {
+            const cleanSector = s.sector ? s.sector.replace(/,/g, " ") : "";
+            const cleanVolume = s.volume ? String(s.volume).replace(/,/g, "") : "";
+            const cleanMarketCap = s.market_cap ? String(s.market_cap).replace(/,/g, "") : "";
+            
+            return [
+                s.symbol,
+                cleanSector,
+                s.price.toFixed(2),
+                s.change.toFixed(2),
+                s.target_hit ? "YES" : "NO",
+                cleanVolume,
+                cleanMarketCap
+            ].join(",");
+        })
     ];
 
-    // Adding \uFEFF adds a UTF-8 Byte Order Mark (BOM) so OpenOffice Calc handles special characters & columns properly
-    const csvString = "\uFEFF" + csvRows.join("\n");
+    // \uFEFF forces UTF-8 encoding so OpenOffice and Excel parse text cleanly
+    const csvString = "\uFEFF" + csvRows.join("\r\n");
+    
     const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     
