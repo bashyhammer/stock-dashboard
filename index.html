@@ -5,11 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Low-Cost Stock Dashboard</title>
 
-    <!-- Include Plotly.js for the visual chart -->
+    <!-- Plotly.js Library -->
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 
     <style>
-        /* Modern Dark Mode Styling */
         * {
             box-sizing: border-box;
             margin: 0;
@@ -50,7 +49,6 @@
             font-size: 0.9rem;
         }
 
-        /* Layout Grid for Main Content */
         .content-grid {
             display: grid;
             grid-template-columns: 1fr 300px;
@@ -78,7 +76,6 @@
             padding-bottom: 8px;
         }
 
-        /* Ticker Rows Styling */
         .ticker-list {
             display: flex;
             flex-direction: column;
@@ -104,13 +101,11 @@
             font-weight: 600;
         }
 
-        /* Chart Area */
         #sunburstChart {
             width: 100%;
             height: 400px;
         }
 
-        /* Status Bar */
         .status-bar {
             text-align: right;
             font-size: 0.8rem;
@@ -127,13 +122,13 @@
         </header>
 
         <div class="content-grid">
-            <!-- Left Column: Sunburst Visualizer -->
+            <!-- Left Column: Sunburst Chart -->
             <div class="card">
                 <h2>Portfolio Allocation</h2>
                 <div id="sunburstChart"></div>
             </div>
 
-            <!-- Right Column: Live Price Feed -->
+            <!-- Right Column: Ticker List -->
             <div class="card">
                 <h2>Watched Tickers</h2>
                 <div id="ticker-list" class="ticker-list">
@@ -147,9 +142,7 @@
         </div>
     </div>
 
-    <!-- Frontend Engine Script -->
     <script>
-        // Points to your local FastAPI server endpoint
         const API_URL = "http://127.0.0.1:8501/api/stocks";
 
         async function refreshDashboard() {
@@ -160,6 +153,7 @@
                 if (result.status === "success" && result.data) {
                     updateDashboardUI(result.data);
                     document.getElementById("last-updated").innerText = `Status: Live | Last synced: ${new Date().toLocaleTimeString()}`;
+                    document.getElementById("last-updated").style.color = "#45a29e";
                 }
             } catch (error) {
                 console.error("Error connecting to FastAPI backend:", error);
@@ -168,38 +162,38 @@
             }
         }
 
-    function updateDashboardUI(stocks) {
-    // 1. Prepare Plotly Sunburst Data
-    const labels = ["Portfolio"];
-    const parents = [""];
-    const values = [null]; // Let Plotly calculate the root total automatically
+        function updateDashboardUI(stocks) {
+            // 1. Prepare Plotly Sunburst Data
+            const labels = ["Portfolio"];
+            const parents = [""];
+            const values = [null]; // Setting root to null lets Plotly calculate the sum without math errors
 
-    stocks.forEach(stock => {
-        labels.push(stock.symbol);
-        parents.push("Portfolio");
-        values.push(stock.price); // Plotly sums these up natively
-    });
+            stocks.forEach(stock => {
+                labels.push(stock.symbol);
+                parents.push("Portfolio");
+                values.push(stock.price);
+            });
 
-    const sunburstData = [{
-        type: "sunburst",
-        labels: labels,
-        parents: parents,
-        values: values,
-        outsidetextfont: { size: 14, color: "#ffffff" },
-        leaf: { opacity: 0.8 },
-        marker: { line: { width: 2, color: "#0b0c10" } }
-    }];
+            const sunburstData = [{
+                type: "sunburst",
+                labels: labels,
+                parents: parents,
+                values: values,
+                outsidetextfont: { size: 14, color: "#ffffff" },
+                leaf: { opacity: 0.8 },
+                marker: { line: { width: 2, color: "#0b0c10" } }
+            }];
 
-    const layout = {
-        margin: { l: 0, r: 0, b: 0, t: 0 },
-        paper_bgcolor: "rgba(0,0,0,0)",
-        plot_bgcolor: "rgba(0,0,0,0)",
-        font: { color: "#c5c6c7" }
-    };
+            const layout = {
+                margin: { l: 0, r: 0, b: 0, t: 0 },
+                paper_bgcolor: "rgba(0,0,0,0)",
+                plot_bgcolor: "rgba(0,0,0,0)",
+                font: { color: "#c5c6c7" }
+            };
 
-    Plotly.newPlot('sunburstChart', sunburstData, layout, { responsive: true, displayModeBar: false });
-}
-            // 2. Render Ticker Cards
+            Plotly.newPlot('sunburstChart', sunburstData, layout, { responsive: true, displayModeBar: false });
+
+            // 2. Render Ticker List Cards
             const tickerContainer = document.getElementById("ticker-list");
             if (tickerContainer) {
                 tickerContainer.innerHTML = stocks.map(stock => {
@@ -219,10 +213,10 @@
             }
         }
 
-        // Fetch prices immediately upon launch
+        // Fetch immediately on page load
         refreshDashboard();
 
-        // Automatically pull fresh data every 30 seconds
+        // Refresh automatically every 30 seconds
         setInterval(refreshDashboard, 30000);
     </script>
 </body>
