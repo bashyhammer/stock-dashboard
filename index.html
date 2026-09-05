@@ -12,6 +12,7 @@
             --text-main: #e0e0e0;
             --accent-green: #00e676;
             --accent-red: #ff5252;
+            --accent-blue: #29b6f6;
             --border-color: #333;
         }
 
@@ -81,6 +82,64 @@
         .kpi-title { font-size: 0.8rem; color: #888; text-transform: uppercase; }
         .kpi-value { font-size: 1.3rem; font-weight: bold; margin-top: 5px; }
 
+        /* Heatmap */
+        #chart-container {
+            background-color: var(--card-dark);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            min-height: 300px;
+        }
+
+        /* AI Trade Feed Box */
+        .ai-feed-card {
+            background-color: var(--card-dark);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+        }
+
+        .ai-feed-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+        }
+
+        .ai-feed-title { font-size: 1rem; font-weight: bold; color: var(--accent-blue); }
+
+        .ai-feed-list {
+            max-height: 160px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .ai-feed-item {
+            font-size: 0.85rem;
+            padding: 8px 12px;
+            background: #252525;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .badge {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.75rem;
+        }
+
+        .badge-buy { background-color: rgba(0, 230, 118, 0.2); color: var(--accent-green); }
+        .badge-sell { background-color: rgba(255, 82, 82, 0.2); color: var(--accent-red); }
+
         /* Controls */
         .controls { display: flex; gap: 10px; margin-bottom: 20px; }
 
@@ -105,16 +164,6 @@
         button:hover { background-color: #444; }
         button.btn-buy { background-color: rgba(0, 230, 118, 0.2); color: var(--accent-green); border-color: var(--accent-green); }
         button.btn-sell { background-color: rgba(255, 82, 82, 0.2); color: var(--accent-red); border-color: var(--accent-red); }
-
-        /* Heatmap */
-        #chart-container {
-            background-color: var(--card-dark);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
-            min-height: 300px;
-        }
 
         /* Table */
         table {
@@ -176,6 +225,17 @@
 
     <!-- HEATMAP -->
     <div id="chart-container"></div>
+
+    <!-- AI TRADE FEED / ACTIVITY LOG -->
+    <div class="ai-feed-card">
+        <div class="ai-feed-header">
+            <span class="ai-feed-title">🤖 AI Agent Trade Activity Log</span>
+            <span style="font-size: 0.8rem; color: #888;">Auto-executing every 30s</span>
+        </div>
+        <div class="ai-feed-list" id="ai-feed-list">
+            <div class="ai-feed-item" style="color: #888;">Waiting for AI engine events...</div>
+        </div>
+    </div>
 
     <!-- CONTROLS -->
     <div class="controls">
@@ -247,6 +307,45 @@
         }
     }
 
+    async function fetchAIStatus() {
+        try {
+            const res = await fetch(`${API_BASE}/ai-status`);
+            if (res.ok) {
+                const data = await res.json();
+                renderAIFeed(data.recent_trades || []);
+            }
+        } catch (err) {
+            console.error("Error fetching AI status:", err);
+        }
+    }
+
+    function renderAIFeed(trades) {
+        const feedList = document.getElementById("ai-feed-list");
+        if (!trades || trades.length === 0) {
+            feedList.innerHTML = `<div class="ai-feed-item" style="color: #888;">No recent AI trades triggered. Monitoring conditions...</div>`;
+            return;
+        }
+
+        feedList.innerHTML = "";
+        // Render newest trades first
+        [...trades].reverse().forEach(t => {
+            const isBuy = t.type.includes("BUY");
+            const badgeClass = isBuy ? "badge-buy" : "badge-sell";
+
+            const item = document.createElement("div");
+            item.className = "ai-feed-item";
+            item.innerHTML = `
+                <div>
+                    <span class="badge ${badgeClass}">${t.type}</span>
+                    <strong style="margin-left: 8px;">${t.symbol}</strong>
+                    <span style="color: #aaa; margin-left: 5px;">${t.shares} shares @ $${t.price.toFixed(2)}</span>
+                </div>
+                <div style="font-size: 0.8rem; color: #888;">Reason: ${t.reason}</div>
+            `;
+            feedList.appendChild(item);
+        });
+    }
+
     function updatePortfolioUI() {
         document.getElementById("portfolio-cash").innerText = `$${currentPortfolio.cash.toFixed(2)}`;
         const keys = Object.keys(currentPortfolio.holdings || {});
@@ -269,6 +368,7 @@
             if (res.ok) {
                 currentlyDisplayedStocks = await res.json();
                 await fetchPortfolio();
+                await fetchAIStatus();
                 updateKPIs();
                 renderHeatmap();
                 renderTable();
@@ -290,58 +390,51 @@
     }
 
     function renderHeatmap() {
-    const validStocks = currentlyDisplayedStocks.filter(s => s.price > 0);
-    if (!validStocks.length) return;
+        const validStocks = currentlyDisplayedStocks.filter(s => s.price > 0);
+        if (!validStocks.length) return;
 
-    const sectors = [...new Set(validStocks.map(s => s.sector))];
-    
-    // Construct hierarchy
-    const labels = ["Sectors", ...sectors, ...validStocks.map(s => s.symbol)];
-    const parents = ["", ...sectors.map(() => "Sectors"), ...validStocks.map(s => s.sector)];
-    
-    // Use market cap or price for slice sizing
-    const values = [0, ...sectors.map(() => 0), ...validStocks.map(s => s.price)];
-    
-    // Sector average performance for inner ring colors
-    const sectorChanges = sectors.map(sec => {
-        const secStocks = validStocks.filter(s => s.sector === sec);
-        const avg = secStocks.reduce((acc, curr) => acc + curr.change, 0) / secStocks.length;
-        return avg;
-    });
+        const sectors = [...new Set(validStocks.map(s => s.sector))];
+        const labels = ["Sectors", ...sectors, ...validStocks.map(s => s.symbol)];
+        const parents = ["", ...sectors.map(() => "Sectors"), ...validStocks.map(s => s.sector)];
+        const values = [0, ...sectors.map(() => 0), ...validStocks.map(s => s.price)];
 
-    // Color values array: Root (0), Sectors (avg change), Individual Stocks (% change)
-    const colorVals = [0, ...sectorChanges, ...validStocks.map(s => s.change)];
+        const sectorChanges = sectors.map(sec => {
+            const secStocks = validStocks.filter(s => s.sector === sec);
+            return secStocks.reduce((acc, curr) => acc + curr.change, 0) / secStocks.length;
+        });
 
-    const data = [{
-        type: "sunburst",
-        labels: labels,
-        parents: parents,
-        values: values,
-        marker: {
-            colors: colorVals,
-            colorscale: [
-                [0.0, "#ff5252"],   // Deep Red for losses (-3% or worse)
-                [0.5, "#444444"],   // Neutral Grey for 0%
-                [1.0, "#00e676"]    // Deep Green for gains (+3% or better)
-            ],
-            cmin: -3,
-            cmax: 3,
-            cmid: 0,
-            showscale: false
-        },
-        hoverinfo: "label+value",
-        textfont: { color: "#ffffff" }
-    }];
+        const colorVals = [0, ...sectorChanges, ...validStocks.map(s => s.change)];
 
-    const layout = {
-        margin: { l: 10, r: 10, b: 10, t: 10 },
-        paper_bgcolor: "#1e1e1e",
-        plot_bgcolor: "#1e1e1e",
-        font: { color: "#e0e0e0" }
-    };
+        const data = [{
+            type: "sunburst",
+            labels: labels,
+            parents: parents,
+            values: values,
+            marker: {
+                colors: colorVals,
+                colorscale: [
+                    [0.0, "#ff5252"],
+                    [0.5, "#444444"],
+                    [1.0, "#00e676"]
+                ],
+                cmin: -3,
+                cmax: 3,
+                cmid: 0,
+                showscale: false
+            },
+            hoverinfo: "label+value",
+            textfont: { color: "#ffffff" }
+        }];
 
-    Plotly.newPlot("chart-container", data, layout, { responsive: true, displayModeBar: false });
-}
+        const layout = {
+            margin: { l: 10, r: 10, b: 10, t: 10 },
+            paper_bgcolor: "#1e1e1e",
+            plot_bgcolor: "#1e1e1e",
+            font: { color: "#e0e0e0" }
+        };
+
+        Plotly.newPlot("chart-container", data, layout, { responsive: true, displayModeBar: false });
+    }
 
     function renderTable() {
         const tbody = document.getElementById("stock-table-body");
