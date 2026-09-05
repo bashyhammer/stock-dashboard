@@ -1,4 +1,5 @@
 import asyncio
+import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,20 +7,25 @@ import yfinance as tk
 from pydantic import BaseModel
 
 # -------------------------------------------------------------------
-# IN-MEMORY STATE (Virtual Portfolio & AI Logs)
+# IN-MEMORY STATE
 # -------------------------------------------------------------------
 portfolio = {
     "cash": 10000.00,
-    "holdings": {},         # Format: {"RIG": {"shares": 10, "avg_price": 5.85}}
-    "trade_history": []     # Log of all transactions
+    "holdings": {},         # {"RIG": {"shares": 10, "avg_price": 5.85}}
+    "trade_history": []
 }
 
 ai_settings = {
     "active": True,               # Toggle AI on/off
     "buy_dip_threshold": -1.5,    # Buy if daily change <= -1.5%
     "sell_profit_threshold": 2.0, # Sell if gain >= +2.0%
-    "trade_amount": 10            # Shares per trade
+    "trade_amount": 10,           # Shares per trade
+    "max_position_shares": 20,    # GUARDRAIL 1: Max 20 shares per stock
+    "cooldown_seconds": 300       # GUARDRAIL 2: Wait 5 mins (300s) before re-buying same stock
 }
+
+# Tracks timestamp of last AI trade per ticker: {"RIG": 1710000000.0}
+last_ai_trade_time = {}
 
 DEFAULT_TICKERS = ["RIG", "KOS", "BORR", "SOFI", "BBAI", "PLTR", "NIO", "RIVN", "LCID", "GRPN", "SNDL"]
 
@@ -37,12 +43,7 @@ FALLBACK_PRICES = {
     "SNDL": {"price": 1.44, "change": 1.77, "sector": "Consumer Defensive"}
 }
 
-# -------------------------------------------------------------------
-# HELPER FUNCTIONS & AI TRADING ENGINE
-# -------------------------------------------------------------------
-
 def fetch_stock_data_internal(symbol: str):
-    """ Internal helper to fetch stock details cleanly. """
     symbol = symbol.upper()
     try:
         stock = tk.Ticker(symbol)
@@ -60,13 +61,13 @@ def fetch_stock_data_internal(symbol: str):
         fb = FALLBACK_PRICES.get(symbol, {"price": 10.00, "change": 0.00, "sector": "Technology"})
         return {"symbol": symbol, "price": fb["price"], "change": fb["change"], "sector": fb["sector"]}
 
-
 async def run_ai_trading_cycle():
-    """ Background loop running every 30 seconds to make AI trading decisions. """
     while True:
         await asyncio.sleep(30)
         if not ai_settings["active"]:
             continue
+
+        now = time.time()
 
         for symbol in DEFAULT_TICKERS:
             data = fetch_stock_data_internal(symbol)
@@ -74,28 +75,35 @@ async def run_ai_trading_cycle():
             change = data["change"]
             shares_to_trade = ai_settings["trade_amount"]
 
-            # --- BUY LOGIC (Dip Buyer) ---
+            owned = portfolio["holdings"].get(symbol, {}).get("shares", 0)
+            last_traded = last_ai_trade_time.get(symbol, 0)
+            in_cooldown = (now - last_traded) < ai_settings["cooldown_seconds"]
+
+            # --- SAFE BUY LOGIC ---
             if change <= ai_settings["buy_dip_threshold"]:
-                total_cost = price * shares_to_trade
-                if portfolio["cash"] >= total_cost:
-                    portfolio["cash"] -= total_cost
-                    if symbol in portfolio["holdings"]:
-                        existing = portfolio["holdings"][symbol]
-                        tot_shares = existing["shares"] + shares_to_trade
-                        avg_p = ((existing["shares"] * existing["avg_price"]) + total_cost) / tot_shares
-                        portfolio["holdings"][symbol] = {"shares": tot_shares, "avg_price": round(avg_p, 2)}
-                    else:
-                        portfolio["holdings"][symbol] = {"shares": shares_to_trade, "avg_price": round(price, 2)}
+                # Check guardrails: max position cap and cooldown
+                if owned < ai_settings["max_position_shares"] and not in_cooldown:
+                    total_cost = price * shares_to_trade
+                    if portfolio["cash"] >= total_cost:
+                        portfolio["cash"] -= total_cost
+                        if symbol in portfolio["holdings"]:
+                            existing = portfolio["holdings"][symbol]
+                            tot_shares = existing["shares"] + shares_to_trade
+                            avg_p = ((existing["shares"] * existing["avg_price"]) + total_cost) / tot_shares
+                            portfolio["holdings"][symbol] = {"shares": tot_shares, "avg_price": round(avg_p, 2)}
+                        else:
+                            portfolio["holdings"][symbol] = {"shares": shares_to_trade, "avg_price": round(price, 2)}
 
-                    portfolio["trade_history"].append({
-                        "type": "AI BUY",
-                        "symbol": symbol,
-                        "shares": shares_to_trade,
-                        "price": price,
-                        "reason": f"Price dipped {change}%"
-                    })
+                        last_ai_trade_time[symbol] = now
+                        portfolio["trade_history"].append({
+                            "type": "AI BUY",
+                            "symbol": symbol,
+                            "shares": shares_to_trade,
+                            "price": price,
+                            "reason": f"Dipped {change}% (Position: {portfolio['holdings'][symbol]['shares']}/{ai_settings['max_position_shares']})"
+                        })
 
-            # --- SELL LOGIC (Profit Taker) ---
+            # --- SAFE SELL LOGIC ---
             elif symbol in portfolio["holdings"]:
                 holding = portfolio["holdings"][symbol]
                 avg_buy_price = holding["avg_price"]
@@ -110,18 +118,17 @@ async def run_ai_trading_cycle():
                     if portfolio["holdings"][symbol]["shares"] == 0:
                         del portfolio["holdings"][symbol]
 
+                    last_ai_trade_time[symbol] = now
                     portfolio["trade_history"].append({
                         "type": "AI SELL",
                         "symbol": symbol,
                         "shares": sell_shares,
                         "price": price,
-                        "reason": f"Took profit (+{profit_percent:.2f}%)"
+                        "reason": f"Profit target hit (+{profit_percent:.2f}%)"
                     })
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Start background AI engine on app boot
     asyncio.create_task(run_ai_trading_cycle())
     yield
 
@@ -138,10 +145,6 @@ app.add_middleware(
 class TradeRequest(BaseModel):
     ticker: str
     shares: int
-
-# -------------------------------------------------------------------
-# ENDPOINTS
-# -------------------------------------------------------------------
 
 @app.get("/stocks")
 def get_stocks(tickers: str = None):
@@ -167,6 +170,18 @@ def get_portfolio():
 @app.get("/ai-status")
 def get_ai_status():
     return {"settings": ai_settings, "recent_trades": portfolio["trade_history"][-10:]}
+
+@app.post("/toggle-ai")
+def toggle_ai():
+    ai_settings["active"] = not ai_settings["active"]
+    return {"active": ai_settings["active"]}
+
+@app.post("/reset-portfolio")
+def reset_portfolio():
+    global portfolio, last_ai_trade_time
+    portfolio = {"cash": 10000.00, "holdings": {}, "trade_history": []}
+    last_ai_trade_time = {}
+    return {"message": "Portfolio reset to $10,000.00"}
 
 @app.post("/buy")
 def buy_stock(trade: TradeRequest):
