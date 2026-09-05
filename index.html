@@ -290,33 +290,58 @@
     }
 
     function renderHeatmap() {
-        const validStocks = currentlyDisplayedStocks.filter(s => s.price > 0);
-        if (!validStocks.length) return;
+    const validStocks = currentlyDisplayedStocks.filter(s => s.price > 0);
+    if (!validStocks.length) return;
 
-        const sectors = [...new Set(validStocks.map(s => s.sector))];
-        const labels = ["Sectors", ...sectors, ...validStocks.map(s => s.symbol)];
-        const parents = ["", ...sectors.map(() => "Sectors"), ...validStocks.map(s => s.sector)];
-        const values = [0, ...sectors.map(() => 0), ...validStocks.map(s => s.price)];
-        const colorVals = [0, ...sectors.map(() => 0), ...validStocks.map(s => s.change)];
+    const sectors = [...new Set(validStocks.map(s => s.sector))];
+    
+    // Construct hierarchy
+    const labels = ["Sectors", ...sectors, ...validStocks.map(s => s.symbol)];
+    const parents = ["", ...sectors.map(() => "Sectors"), ...validStocks.map(s => s.sector)];
+    
+    // Use market cap or price for slice sizing
+    const values = [0, ...sectors.map(() => 0), ...validStocks.map(s => s.price)];
+    
+    // Sector average performance for inner ring colors
+    const sectorChanges = sectors.map(sec => {
+        const secStocks = validStocks.filter(s => s.sector === sec);
+        const avg = secStocks.reduce((acc, curr) => acc + curr.change, 0) / secStocks.length;
+        return avg;
+    });
 
-        const data = [{
-            type: "sunburst",
-            labels: labels,
-            parents: parents,
-            values: values,
-            marker: { colors: colorVals, colorscale: "RdYlGn", cmid: 0 },
-            hoverinfo: "label+value"
-        }];
+    // Color values array: Root (0), Sectors (avg change), Individual Stocks (% change)
+    const colorVals = [0, ...sectorChanges, ...validStocks.map(s => s.change)];
 
-        const layout = {
-            margin: { l: 0, r: 0, b: 0, t: 0 },
-            paper_bgcolor: "#1e1e1e",
-            plot_bgcolor: "#1e1e1e",
-            font: { color: "#e0e0e0" }
-        };
+    const data = [{
+        type: "sunburst",
+        labels: labels,
+        parents: parents,
+        values: values,
+        marker: {
+            colors: colorVals,
+            colorscale: [
+                [0.0, "#ff5252"],   // Deep Red for losses (-3% or worse)
+                [0.5, "#444444"],   // Neutral Grey for 0%
+                [1.0, "#00e676"]    // Deep Green for gains (+3% or better)
+            ],
+            cmin: -3,
+            cmax: 3,
+            cmid: 0,
+            showscale: false
+        },
+        hoverinfo: "label+value",
+        textfont: { color: "#ffffff" }
+    }];
 
-        Plotly.newPlot("chart-container", data, layout, { responsive: true, displayModeBar: false });
-    }
+    const layout = {
+        margin: { l: 10, r: 10, b: 10, t: 10 },
+        paper_bgcolor: "#1e1e1e",
+        plot_bgcolor: "#1e1e1e",
+        font: { color: "#e0e0e0" }
+    };
+
+    Plotly.newPlot("chart-container", data, layout, { responsive: true, displayModeBar: false });
+}
 
     function renderTable() {
         const tbody = document.getElementById("stock-table-body");
